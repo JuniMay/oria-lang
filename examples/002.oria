@@ -1,0 +1,72 @@
+import std
+
+use std::collections::Vec
+use std::math::sqrt
+
+let insert = (implicit Elem : Type,
+              implicit len : Nat,
+              x : Elem,
+              sorted : Vec(len, elem)) : Vec(S(len), Elem) => match sorted {
+    Nil => Cons(x, Nil),
+    Cons(y, ys) => if x < y {
+        Cons(x, sorted)
+    } else {
+        Cons(y, insert(x, ys))
+    }
+}
+
+let ins_sort = (
+    implicit Elem : Type,
+    implicit len : Nat,
+    xs : Vec(len, Elem)
+) : Vec(len, Elem) => match xs {
+    Nil => Nil,
+    Cons(x, xs) => insert(x, ins_sort(xs))
+}
+
+type Direction = North : Direction
+               | East : Direction
+               | South : Direction
+               | West : Direction
+
+let turn_clockwise = (d : Direction) : Direction => match d {
+    North => East,
+    East => South,
+    South => West,
+    West => North
+}
+
+type Shape = Circle(Float32) : Shape
+           | Rectangle(Float32, Float32) : Shape
+           | Triangle(Float32, Float32, Float32) : Shape
+
+let area = (s : Shape) : Float32 => match s {
+    Circle(r) => 3.14159 * r * r,
+    Rectangle(w, h) => w * h,
+    Triangle(a, b, c) => {
+        let p = (a + b + c) / 2.0
+        sqrt(p * (p - a) * (p - b) * (p - c))
+    }
+}
+
+let area_spec = (s : Shape) : Float32 => match s {
+    Circle(r) => 3.14159 * r * r,
+    Rectangle(w, h) => w * h,
+    Triangle(a, b, c) => {
+        let p = (a + b + c) / 2.0
+        sqrt(p * (p - a) * (p - b) * (p - c))
+    }
+}
+
+#just testing the parser
+let main = () => {
+    let triangle = Triangle(3.0, 4.0, 5.0)
+    let a = area(triangle)
+    1+2
+    x+5
+    3+4
+    @print(@to_f32(a))
+    1+2
+    x+y.6.8
+    3+4
+}

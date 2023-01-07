@@ -1,0 +1,22 @@
+[package]
+name = "oria-lang"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "oria"
+path = "src/lib.rs"
+
+[[bin]]
+name = "oriac"
+path = "src/bin/main.rs"
+required-features = ["parser"]
+
+[dependencies]
+pest = { version = "2.5.2", features = ["pretty-print"], optional = true }
+pest_derive = { version = "2.5.2", optional = true }
+clap = "4.0.29"
+either = "1.8.0"
+
+[features]
+parser = ["pest", "pest_derive"]

@@ -1,0 +1,235 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE | ("#" ~ (!NEWLINE ~ ANY)*) }
+
+ident = @{ (ASCII_ALPHA | "_" | "@") ~ (ASCII_ALPHANUMERIC | "_" | "'")* }
+
+level = { ASCII_DIGIT+ }
+universe = ${ "Type" ~ level? }
+unit = { "Unit" | "()" }
+
+literal_suffix = { "u8" 
+                 | "u16"
+                 | "u32"
+                 | "u64"
+                 | "i8"
+                 | "i16"
+                 | "i32"
+                 | "i64"
+                 | "f32"
+                 | "f64"
+                 | "usize"
+                 | "isize"
+                 }
+
+hex_prefix = { "0x" | "0X" }
+oct_prefix = { "0o" | "0O" }
+bin_prefix = { "0b" | "0B" }
+
+dec_body = { (ASCII_DIGIT | "_")+ }
+hex_body = { (ASCII_HEX_DIGIT | "_")+ }
+oct_body = { (ASCII_OCT_DIGIT | "_")+ }
+bin_body = { (ASCII_BIN_DIGIT | "_")+ }
+
+dec_integer = ${ dec_body ~ literal_suffix? }
+hex_integer = ${ hex_prefix ~ hex_body ~ literal_suffix? }
+oct_integer = ${ oct_prefix ~ oct_body ~ literal_suffix? }
+bin_integer = ${ bin_prefix ~ bin_body ~ literal_suffix? }
+
+exponent = ${ ("e" | "E") ~ ("+" | "-")? ~ dec_body }
+decimal_part = { "." ~ dec_body }
+floating = ${ dec_body ~ decimal_part ~ exponent ~ literal_suffix? 
+            | dec_body ~ exponent ~ literal_suffix?
+            | dec_body ~ decimal_part ~ literal_suffix? 
+            }
+
+literal = { floating | hex_integer | oct_integer | bin_integer | dec_integer }
+
+add = { "+" }
+sub = { "-" }
+mul = { "*" }
+div = { "/" }
+rem = { "%" }
+frac = { "//" }
+pipe = { "|>" }
+pow = { "**" }
+and = { "&&" }
+or  = { "||" }
+bit_and = { "&" }
+bit_or  = { "|" }
+bit_xor = { "^" }
+shl = { "<<" }
+shr = { ">>" }
+eq = { "==" }
+ne = { "!=" }
+lt = { "<" }
+le = { "<=" }
+gt = { ">" }
+ge = { ">=" }
+as_ = { "as" }
+
+pos = { "+" }
+neg = { "-" }
+not = { "!" }
+bit_not = { "~" }
+ref_op = { "&" }
+deref_op = { "*" }
+
+infix = _{ add
+         | sub
+         | pow
+         | mul
+         | frac
+         | div
+         | rem
+         | pipe
+         | and
+         | or
+         | bit_and
+         | bit_or
+         | bit_xor
+         | shl
+         | shr
+         | eq
+         | ne
+         | le
+         | lt
+         | ge
+         | gt
+         | as_
+         }
+
+prefix = _{ pos
+          | neg
+          | not
+          | bit_not
+          | ref_op
+          | deref_op
+          }
+
+expr = { op_expr }
+
+spec = { "mut" | "comptime" | "implicit" | "builtin" | "extern" }
+
+with_clause = { "with" ~ atomic_expr ~ ("+" ~ atomic_expr)* }
+field_optional_id = { spec? ~ (ident ~ ":")? ~ expr ~ with_clause? }
+field_optional_ty = { spec? ~ ident ~ (":" ~ expr)? ~ with_clause?}
+field_nonoptional = { spec? ~ ident ~ ":" ~ expr ~ with_clause? }
+
+field_explicit_init = { ident ~ "=" ~ expr }
+
+op_expr = { prefix* ~ app_expr ~ (infix ~ prefix* ~ app_expr)* }
+
+app_arg_named = { ident ~ "=" ~ expr }
+app_arg = { app_arg_named | expr }
+app_args = { "(" ~ (app_arg ~ ("," ~ app_arg)*)? ~ ")" }
+app_expr = { primary_expr ~ app_args* }
+
+primary_expr = { fn_expr
+               | atomic_expr ~ ("." ~ atomic_expr)* 
+               }
+
+fn_ty_params = { "(" ~ (field_optional_id ~ ("," ~ field_optional_id)*)? ~ ")" }
+fn_ty = { fn_ty_params ~ "->" ~ app_expr }
+
+fn_expr = { fn_lhs ~ "=>" ~ expr }
+fn_lhs = { fn_params ~ (":" ~ expr)? }
+fn_params = { "(" ~ (field_optional_ty ~ ("," ~ field_optional_ty)*)? ~ ")" }
+
+tuple_field = { field_explicit_init | field_optional_id }
+tuple = { "(" ~ tuple_field ~ ("," ~ tuple_field)+ ~ ")" }
+
+atomic_expr = { universe
+              | unit
+              | literal
+              | match_expr
+              | loop_expr
+              | while_expr
+              | if_expr
+              | record_init
+              | chained
+              | fn_ty
+              | tuple
+              | "(" ~ expr ~ ")"
+              | block
+              }
+
+
+chained = { ident ~ ("::" ~ ident)* }
+
+record_init_field = { ident ~ ":" ~ expr }
+record_init = { chained ~ "{" ~ (record_init_field ~ ("," ~ record_init_field)*)? ~ "}" }
+
+match_expr  = { "match" ~ expr ~ "{" ~ ( match_arm ~ ("," ~ match_arm)* )? ~ "}" }
+match_arm = { pattern ~ "=>" ~ expr }
+
+loop_expr = { "loop" ~ block }
+while_expr = { "while" ~ expr ~ block }
+if_expr = { "if" ~ expr ~ block ~ ("else" ~ (if_expr | block))? }
+
+pattern = { "|"? ~ pattern_elem ~ ("|" ~ pattern_elem)* }
+pattern_elem = { wildcard
+               | rest 
+               | range_pattern
+               | constructor_pattern
+               | literal
+               | record_pattern
+               | tuple_pattern
+               | "(" ~ pattern ~ ")"
+               }
+wildcard = { "_" }
+rest = { ".." }
+constructor_pattern = { chained ~ ("(" ~ (pattern ~ ("," ~ pattern)*)? ~ ")")? }
+
+record_pattern_field = { ident ~ ":" ~ pattern }
+record_pattern_elem = { record_pattern_field | rest }
+record_pattern = { "{" ~ record_pattern_elem ~ ("," ~ record_pattern_elem)* ~ "}" }
+
+tuple_pattern = { "(" ~ pattern ~ ("," ~ pattern)+ ~ ")" }
+
+range_pattern_bound = { literal | chained }
+range_pattern_inclusive = { range_pattern_bound ~ "..=" ~ range_pattern_bound }
+range_pattern_exclusive = { range_pattern_bound ~ ".." ~ range_pattern_bound }
+range_pattern = { range_pattern_inclusive | range_pattern_exclusive }
+
+assign = { expr ~ "=" ~ expr }
+stmt = { item | assign | expr  }
+block = { "{" ~ stmt* ~ "}" }
+
+
+type_decl = { "type" ~ spec? ~ ident ~ fn_ty_params? ~ (":" ~ app_expr)? ~ ("=" ~ type_decl_body)? }
+
+type_decl_body = { record  | constructors }
+
+record = { "{" ~ (field_nonoptional ~ ("," ~ field_nonoptional)*)? ~ "}" }
+
+constructor = { ident ~ fn_ty_params? ~ (":" ~ app_expr)? }
+constructors = { "|"? ~ constructor ~ ("|" ~ constructor)* }
+
+let_ty = { ":" ~ expr }
+let_init = { "=" ~ expr }
+let_decl = { "let" ~ spec? ~ ident ~ let_ty? ~ let_init? }
+
+import = { "import" ~ ident }
+
+use_all = { chained ~ "::" ~ "*" }
+use_multi = { chained ~ "::" ~ "{" ~ use_tree ~ ("," ~ use_tree)* ~ "}" }
+use_as = { chained ~ "as" ~ ident }
+use_tree = { use_all | use_multi | use_as | chained }
+use_decl = { "use" ~ use_tree }
+
+trait_decl = { "trait" ~ ident ~ fn_ty_params ~ "{" ~ item* ~ "}" }
+
+instance_item = { ident ~ "=" ~ expr }
+instance = { "instance" ~ ident ~ fn_params ~ "{" ~ instance_item* ~ "}" }
+
+item = { type_decl 
+       | module 
+       | let_decl
+       | import
+       | use_decl
+       | trait_decl
+       | instance
+       }
+
+module = { "module" ~ ident ~ "{" ~ item* ~ "}" }
+
+compunit = { SOI ~ item* ~ EOI }

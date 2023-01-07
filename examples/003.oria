@@ -1,0 +1,9 @@
+# just testing the parser
+let builtin_var : @i32 = @addi32(1, 2)
+let builtin_alloc : @ptr(@i32) = @malloc(@i32, 1)
+
+let f = (x) => x + 1
+let f' = (x) => 2 * f(x)
+
+let t = (1, 2)
+let x = t.1
