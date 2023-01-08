@@ -90,7 +90,7 @@ type Int = { value : @isize }
 type UInt = { value : @usize }
 
 
-type Rational(implicit T : Type with Add + Sub + Mul + Div) = {
+type Rational<T : Type with Add + Sub + Mul + Div> = {
     numinator : T,
     denominator : T
 }
@@ -245,18 +245,18 @@ instance Mul(Rational) {
 let builtin @llvm_ir : (@str) -> Unit
 let builtin @asm : (@str) -> Unit
 
-let builtin @typeof = (implicit T, x : T) => T
+let builtin @typeof = <T>(x : T) => T
 
 let the = (T : Type, x : T) : T => x
 
-let id = (implicit T : Type, x : T) : T => x
+let id = <T: Type>(x : T) : T => x
 
 type Void
 
-type PhantomData(implicit Type)
+type PhantomData<Type>
 
-type Equal(implicit A : Type, implicit B : Type, x : A, y : B)
-    = Refl(implicit A : Type, implicit x : A) : Equal(x, x) 
+type Equal<A : Type, B : Type>(x : A, y : B)
+    = Refl<A : Type, x : A> : Equal(x, x) 
 
 # the(Equal(2, 3), Refl) shall fail to typecheck
 
@@ -267,37 +267,22 @@ type Either(L : Type, R : Type) = Left(L) | Right(R)
 type Result(T : Type, E : Type) = Ok(T) | Err(E)
 
 trait Functor(Self : (Type) -> Type) {
-    let map : (
-        implicit A : Type, 
-        implicit B : Type, 
-        (A) -> B, 
-        Self(A)
-    ) -> Self(B)
+    let map : <A : Type, B : Type>((A) -> B, Self(A)) -> Self(B)
 }
 
 trait Applicative(Self : (Type) -> Type with Functor) {
-    let pure : (implicit A : Type, A) -> Self(A)
+    let pure : <A : Type>(A) -> Self(A)
 
-    let apply : (
-        implicit A : Type, 
-        implicit B : Type, 
+    let apply : <A : Type, B : Type>(
         Self((A) -> B), 
         Self(A)
     ) -> Self(B)
 }
 
 trait Monad(Self : (Type) -> Type with Applicative + Functor) {
-    let join : (
-        implicit A : Type, 
-        Self(Self(A))
-    ) -> Self(A)
+    let join : <A: Type>(Self(Self(A))) -> Self(A)
 
-    let bind : (
-        implicit A : Type, 
-        implicit B : Type, 
-        (A) -> Self(B), 
-        Self(A)
-    ) -> Self(B)
+    let bind : <A : Type, B : Type>((A) -> Self(B), Self(A)) -> Self(B)
 }
 
 instance Functor(Option) {

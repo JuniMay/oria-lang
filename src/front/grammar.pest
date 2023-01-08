@@ -107,35 +107,39 @@ prefix = _{ pos
 
 expr = { op_expr }
 
-spec = { "mut" | "comptime" | "implicit" | "builtin" | "extern" }
-
+spec = { "mut" | "comptime" | "builtin" | "extern" }
 with_clause = { "with" ~ atomic_expr ~ ("+" ~ atomic_expr)* }
-field_optional_id = { spec? ~ (ident ~ ":")? ~ expr ~ with_clause? }
-field_optional_ty = { spec? ~ ident ~ (":" ~ expr)? ~ with_clause?}
-field_nonoptional = { spec? ~ ident ~ ":" ~ expr ~ with_clause? }
+field_optional_id = { spec? ~ (ident ~ ":")? ~ app_expr ~ with_clause? }
+field_optional_ty = { spec? ~ ident ~ (":" ~ app_expr)? ~ with_clause?}
+field_nonoptional = { spec? ~ ident ~ ":" ~ app_expr ~ with_clause? }
 
-field_explicit_init = { ident ~ "=" ~ expr }
+field_explicit_init = { ident ~ "=" ~ app_expr }
 
 op_expr = { prefix* ~ app_expr ~ (infix ~ prefix* ~ app_expr)* }
 
-app_arg_named = { ident ~ "=" ~ expr }
-app_arg = { app_arg_named | expr }
-app_args = { "(" ~ (app_arg ~ ("," ~ app_arg)*)? ~ ")" }
+app_arg_named = { ident ~ "=" ~ app_expr }
+app_arg = { app_arg_named | app_expr }
+app_args_explicit = { "(" ~ (app_arg ~ ("," ~ app_arg)*)? ~ ")" }
+app_args_implicit = { "<" ~ (app_arg ~ ("," ~ app_arg)*)? ~ ">" }
+app_args = { app_args_explicit | app_args_implicit }
 app_expr = { primary_expr ~ app_args* }
 
 primary_expr = { fn_expr
                | atomic_expr ~ ("." ~ atomic_expr)* 
                }
 
-fn_ty_params = { "(" ~ (field_optional_id ~ ("," ~ field_optional_id)*)? ~ ")" }
+fn_ty_params_explicit = { "(" ~ (field_optional_id ~ ("," ~ field_optional_id)*)? ~ ")" }
+fn_ty_params_implicit = { "<" ~ (field_optional_id ~ ("," ~ field_optional_id)*)? ~ ">" }
+fn_ty_params = { fn_ty_params_implicit? ~ fn_ty_params_explicit? }
 fn_ty = { fn_ty_params ~ "->" ~ app_expr }
 
-fn_expr = { fn_lhs ~ "=>" ~ expr }
+fn_params_explicit = { "(" ~ (field_optional_ty ~ ("," ~ field_optional_ty)*)? ~ ")" }
+fn_params_implicit = { "<" ~ (field_optional_ty ~ ("," ~ field_optional_ty)*)? ~ ">" }
+fn_params = { fn_params_implicit? ~ fn_params_explicit? }
 fn_lhs = { fn_params ~ (":" ~ expr)? }
-fn_params = { "(" ~ (field_optional_ty ~ ("," ~ field_optional_ty)*)? ~ ")" }
+fn_expr = { fn_lhs ~ "=>" ~ expr }
 
-tuple_field = { field_explicit_init | field_optional_id }
-tuple = { "(" ~ tuple_field ~ ("," ~ tuple_field)+ ~ ")" }
+tuple = { "(" ~ expr ~ ("," ~ expr)+ ~ ")" }
 
 atomic_expr = { universe
               | unit

@@ -1,5 +1,3 @@
-use either::Either;
-
 use super::context::{mk_empty_symtable, SymbolTablePtr};
 use super::value::Value;
 
@@ -137,8 +135,6 @@ pub enum Spec {
     Builtin,
     /// Compile-time
     Comptime,
-    /// Implicit
-    Implicit,
     /// Not specified
     None,
 }
@@ -149,6 +145,7 @@ pub struct Field {
     pub name: Option<String>,
     pub ty: Option<Expr>,
     pub with: Vec<String>,
+    pub implicit: bool,
 }
 
 impl Field {
@@ -158,6 +155,7 @@ impl Field {
             name,
             ty,
             with,
+            implicit: false,
         }
     }
 }
@@ -167,11 +165,12 @@ impl Field {
 pub struct FieldInit {
     pub name: Option<String>,
     pub expr: Expr,
+    pub implicit: bool,
 }
 
 impl FieldInit {
     pub fn new(name: Option<String>, expr: Expr) -> Self {
-        Self { name, expr }
+        Self { name, expr, implicit: false }
     }
 }
 
@@ -260,7 +259,7 @@ pub enum ExprKind {
     /// An unary expression.
     Unary(UnaryOp, Box<Expr>),
     /// A tupleyao expression.
-    Tuple(Vec<Either<Field, FieldInit>>),
+    Tuple(Vec<Expr>),
     /// A function application expression.
     Apply(Box<Expr>, Vec<FieldInit>),
     /// A match expression.
@@ -340,9 +339,9 @@ impl Expr {
         }
     }
 
-    pub fn mk_tuple(args: Vec<Either<Field, FieldInit>>) -> Self {
+    pub fn mk_tuple(exprs: Vec<Expr>) -> Self {
         Self {
-            kind: ExprKind::Tuple(args),
+            kind: ExprKind::Tuple(exprs),
             ty: None,
         }
     }

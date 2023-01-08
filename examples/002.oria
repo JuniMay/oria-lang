@@ -3,10 +3,10 @@ import std
 use std::collections::Vec
 use std::math::sqrt
 
-let insert = (implicit Elem : Type,
-              implicit len : Nat,
-              x : Elem,
-              sorted : Vec(len, elem)) : Vec(S(len), Elem) => match sorted {
+let insert = <Elem : Type, len : Nat>(
+    x : Elem,
+    sorted : Vec(len, elem)
+) : Vec(S(len), Elem) => match sorted {
     Nil => Cons(x, Nil),
     Cons(y, ys) => if x < y {
         Cons(x, sorted)
@@ -15,18 +15,16 @@ let insert = (implicit Elem : Type,
     }
 }
 
-let ins_sort = (
-    implicit Elem : Type,
-    implicit len : Nat,
+let ins_sort = <Elem : Type, len : Nat>(
     xs : Vec(len, Elem)
 ) : Vec(len, Elem) => match xs {
     Nil => Nil,
     Cons(x, xs) => insert(x, ins_sort(xs))
 }
 
-type Direction = North : Direction
+type Direction = North
                | East : Direction
-               | South : Direction
+               | South
                | West : Direction
 
 let turn_clockwise = (d : Direction) : Direction => match d {
@@ -59,7 +57,7 @@ let area_spec = (s : Shape) : Float32 => match s {
 }
 
 #just testing the parser
-let main = () => {
+let main = () : Unit => {
     let triangle = Triangle(3.0, 4.0, 5.0)
     let a = area(triangle)
     1+2

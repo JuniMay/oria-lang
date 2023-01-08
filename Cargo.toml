@@ -16,7 +16,6 @@ required-features = ["parser"]
 pest = { version = "2.5.2", features = ["pretty-print"], optional = true }
 pest_derive = { version = "2.5.2", optional = true }
 clap = "4.0.29"
-either = "1.8.0"
 
 [features]
 parser = ["pest", "pest_derive"]

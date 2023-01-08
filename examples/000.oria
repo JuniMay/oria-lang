@@ -51,3 +51,5 @@ let fn = (x: Type, mut y : Int) : Int => match x {
        }
     }
 }
+
+let a_fn_ty = <T : Type>(comptime T, Int, mut Int) -> Int

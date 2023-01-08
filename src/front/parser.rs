@@ -1,5 +1,4 @@
 use crate::define::ast::*;
-use either::Either;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -120,7 +119,34 @@ pub fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
 }
 
 pub fn handle_fn_ty_params(pair: Pair<Rule>) -> Vec<Field> {
+    let mut pairs = pair.into_inner();
+    let mut params = Vec::new();
+    while let Some(p) = pairs.next() {
+        match p.as_rule() {
+            Rule::fn_ty_params_explicit => {
+                params.extend(handle_fn_ty_params_explicit(p));
+            }
+            Rule::fn_ty_params_implicit => {
+                params.extend(handle_fn_ty_params_implicit(p));
+            }
+            _ => unreachable!(),
+        }
+    }
+    params
+}
+
+pub fn handle_fn_ty_params_explicit(pair: Pair<Rule>) -> Vec<Field> {
     pair.into_inner().map(handle_field).collect()
+}
+
+pub fn handle_fn_ty_params_implicit(pair: Pair<Rule>) -> Vec<Field> {
+    pair.into_inner()
+        .map(|p| {
+            let mut field = handle_field(p);
+            field.implicit = true;
+            field
+        })
+        .collect()
 }
 
 pub fn handle_spec(pair: Pair<Rule>) -> Spec {
@@ -130,7 +156,6 @@ pub fn handle_spec(pair: Pair<Rule>) -> Spec {
         "extern" => Spec::Extern,
         "builtin" => Spec::Builtin,
         "comptime" => Spec::Comptime,
-        "implicit" => Spec::Implicit,
         _ => unreachable!(),
     }
 }
@@ -147,7 +172,7 @@ pub fn handle_field(pair: Pair<Rule>) -> Field {
         match pair.as_rule() {
             Rule::spec => spec = handle_spec(pair),
             Rule::ident => ident = Some(pair.as_str().to_string()),
-            Rule::expr => expr = Some(handle_expr(pair)),
+            Rule::app_expr => expr = Some(handle_app_expr(pair)),
             Rule::with_clause => with = handle_with_clause(pair),
             _ => unreachable!(),
         }
@@ -177,9 +202,28 @@ pub fn handle_app_expr(pair: Pair<Rule>) -> Expr {
 }
 
 pub fn handle_app_args(pair: Pair<Rule>) -> Vec<FieldInit> {
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::app_args_explicit => handle_app_args_explicit(pair),
+        Rule::app_args_implicit => handle_app_args_implicit(pair),
+        _ => unreachable!(),
+    }
+}
+
+pub fn handle_app_args_explicit(pair: Pair<Rule>) -> Vec<FieldInit> {
     let mut args = Vec::new();
     for pair in pair.into_inner() {
         args.push(handle_app_arg(pair));
+    }
+    args
+}
+
+pub fn handle_app_args_implicit(pair: Pair<Rule>) -> Vec<FieldInit> {
+    let mut args = Vec::new();
+    for pair in pair.into_inner() {
+        let mut arg = handle_app_arg(pair);
+        arg.implicit = true;
+        args.push(arg);
     }
     args
 }
@@ -190,10 +234,10 @@ pub fn handle_app_arg(pair: Pair<Rule>) -> FieldInit {
         Rule::app_arg_named => {
             let pairs = rule.into_inner().collect::<Vec<_>>();
             let name = pairs[0].as_str().to_string();
-            let expr = handle_expr(pairs[1].clone());
+            let expr = handle_app_expr(pairs[1].clone());
             FieldInit::new(Some(name), expr)
         }
-        Rule::expr => FieldInit::new(None, handle_expr(rule)),
+        Rule::app_expr => FieldInit::new(None, handle_app_expr(rule)),
         _ => unreachable!(),
     }
 }
@@ -240,7 +284,34 @@ pub fn handle_fn_lhs(pair: Pair<Rule>) -> (Vec<Field>, Option<Box<Expr>>) {
 }
 
 pub fn handle_fn_params(pair: Pair<Rule>) -> Vec<Field> {
+    let mut pairs = pair.into_inner();
+    let mut params = Vec::new();
+    while let Some(p) = pairs.next() {
+        match p.as_rule() {
+            Rule::fn_params_explicit => {
+                params.extend(handle_fn_ty_params_explicit(p));
+            }
+            Rule::fn_params_implicit => {
+                params.extend(handle_fn_ty_params_implicit(p));
+            }
+            _ => unreachable!(),
+        }
+    }
+    params
+}
+
+pub fn handle_fn_params_explicit(pair: Pair<Rule>) -> Vec<Field> {
     pair.into_inner().map(handle_field).collect()
+}
+
+pub fn handle_fn_params_implicit(pair: Pair<Rule>) -> Vec<Field> {
+    pair.into_inner()
+        .map(|p| {
+            let mut field = handle_field(p);
+            field.implicit = true;
+            field
+        })
+        .collect()
 }
 
 pub fn handle_atomic_expr(pair: Pair<Rule>) -> Expr {
@@ -484,17 +555,8 @@ pub fn handle_chained(pair: Pair<Rule>) -> Chained {
 }
 
 pub fn handle_tuple(pair: Pair<Rule>) -> Expr {
-    let elems = pair.into_inner().map(handle_tuple_field).collect();
-    Expr::mk_tuple(elems)
-}
-
-pub fn handle_tuple_field(pair: Pair<Rule>) -> Either<Field, FieldInit> {
-    let pair = pair.into_inner().next().unwrap();
-    match pair.as_rule() {
-        Rule::field_optional_id => Either::Left(handle_field(pair)),
-        Rule::field_explicit_init => Either::Right(handle_field_explicit_init(pair)),
-        _ => unreachable!(),
-    }
+    let exprs = pair.into_inner().map(handle_expr).collect();
+    Expr::mk_tuple(exprs)
 }
 
 pub fn handle_field_explicit_init(pair: Pair<Rule>) -> FieldInit {
