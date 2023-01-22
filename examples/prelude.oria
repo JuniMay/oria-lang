@@ -1,317 +1,123 @@
-type builtin @i8  : Type
-type builtin @i16 : Type
-type builtin @i32 : Type
-type builtin @i64 : Type
-type builtin @u8  : Type
-type builtin @u16 : Type
-type builtin @u32 : Type
-type builtin @u64 : Type
-type builtin @f32 : Type
-type builtin @f64 : Type
+type builtin @i8 
+type builtin @i16
+type builtin @i32
+type builtin @i64
+type builtin @u8 
+type builtin @u16
+type builtin @u32
+type builtin @u64
+type builtin @f32
+type builtin @f64
 
-type builtin @isize : Type
-type builtin @usize : Type
+type builtin @isize
+type builtin @usize
 
 type builtin @ptr(Type)
 type builtin @array(@usize, Type)
 type builtin @slice(Type)
 
-let builtin @char : Type = @u32
-let builtin @str  : Type = @slice(@u8)
+type @char = @u32
+type @str   = @slice(@u8)
 
-let builtin @add_i8  : (@i8,  @i8)  -> @i8
-let builtin @add_i16 : (@i16, @i16) -> @i16
-let builtin @add_i32 : (@i32, @i32) -> @i32
-let builtin @add_i64 : (@i64, @i64) -> @i64
-let builtin @add_u8  : (@u8,  @u8)  -> @u8
-let builtin @add_u16 : (@u16, @u16) -> @u16
-let builtin @add_u32 : (@u32, @u32) -> @u32
-let builtin @add_u64 : (@u64, @u64) -> @u64
-let builtin @add_f32 : (@f32, @f32) -> @f32
-let builtin @add_f64 : (@f64, @f64) -> @f64
+def builtin @add_i8 (@i8,  @i8) : @i8
+def builtin @add_i16(@i16, @i16): @i16
+def builtin @add_i32(@i32, @i32): @i32
+def builtin @add_i64(@i64, @i64): @i64
+def builtin @add_u8 (@u8,  @u8) : @u8
+def builtin @add_u16(@u16, @u16): @u16
+def builtin @add_u32(@u32, @u32): @u32
+def builtin @add_u64(@u64, @u64): @u64
+def builtin @add_f32(@f32, @f32): @f32
+def builtin @add_f64(@f64, @f64): @f64
 
-let builtin @add_isize : (@isize, @isize) -> @isize
-let builtin @add_usize : (@usize, @usize) -> @usize
+def builtin @add_isize(@isize, @isize): @isize
+def builtin @add_usize(@usize, @usize): @usize
 
-let builtin @sub_i8  : (@i8,  @i8)  -> @i8
-let builtin @sub_i16 : (@i16, @i16) -> @i16
-let builtin @sub_i32 : (@i32, @i32) -> @i32
-let builtin @sub_i64 : (@i64, @i64) -> @i64
-let builtin @sub_u8  : (@u8,  @u8)  -> @u8
-let builtin @sub_u16 : (@u16, @u16) -> @u16
-let builtin @sub_u32 : (@u32, @u32) -> @u32
-let builtin @sub_u64 : (@u64, @u64) -> @u64
-let builtin @sub_f32 : (@f32, @f32) -> @f32
-let builtin @sub_f64 : (@f64, @f64) -> @f64
+def builtin @sub_i8 (@i8,  @i8) : @i8
+def builtin @sub_i16(@i16, @i16): @i16
+def builtin @sub_i32(@i32, @i32): @i32
+def builtin @sub_i64(@i64, @i64): @i64
+def builtin @sub_u8 (@u8,  @u8) : @u8
+def builtin @sub_u16(@u16, @u16): @u16
+def builtin @sub_u32(@u32, @u32): @u32
+def builtin @sub_u64(@u64, @u64): @u64
+def builtin @sub_f32(@f32, @f32): @f32
+def builtin @sub_f64(@f64, @f64): @f64
 
-let builtin @sub_isize : (@isize, @isize) -> @isize
-let builtin @sub_usize : (@usize, @usize) -> @usize
+def builtin @sub_isize(@isize, @isize): @isize
+def builtin @sub_usize(@usize, @usize): @usize
 
-let builtin @mul_i8  : (@i8,  @i8)  -> @i8
-let builtin @mul_i16 : (@i16, @i16) -> @i16
-let builtin @mul_i32 : (@i32, @i32) -> @i32
-let builtin @mul_i64 : (@i64, @i64) -> @i64
-let builtin @mul_u8  : (@u8,  @u8)  -> @u8
-let builtin @mul_u16 : (@u16, @u16) -> @u16
-let builtin @mul_u32 : (@u32, @u32) -> @u32
-let builtin @mul_u64 : (@u64, @u64) -> @u64
-let builtin @mul_f32 : (@f32, @f32) -> @f32
-let builtin @mul_f64 : (@f64, @f64) -> @f64
+def builtin @mul_i8 (@i8,  @i8) : @i8
+def builtin @mul_i16(@i16, @i16): @i16
+def builtin @mul_i32(@i32, @i32): @i32
+def builtin @mul_i64(@i64, @i64): @i64
+def builtin @mul_u8 (@u8,  @u8) : @u8
+def builtin @mul_u16(@u16, @u16): @u16
+def builtin @mul_u32(@u32, @u32): @u32
+def builtin @mul_u64(@u64, @u64): @u64
+def builtin @mul_f32(@f32, @f32): @f32
+def builtin @mul_f64(@f64, @f64): @f64
 
-let builtin @mul_isize : (@isize, @isize) -> @isize
-let builtin @mul_usize : (@usize, @usize) -> @usize
+def builtin @mul_isize(@isize, @isize): @isize
+def builtin @mul_usize(@usize, @usize): @usize
 
-let builtin @div_i8  : (@i8,  @i8)  -> (@i8,  @i8)
-let builtin @div_i16 : (@i16, @i16) -> (@i16, @i16)
-let builtin @div_i32 : (@i32, @i32) -> (@i32, @i32)
-let builtin @div_i64 : (@i64, @i64) -> (@i64, @i64)
-let builtin @div_u8  : (@u8,  @u8)  -> (@u8,  @u8)
-let builtin @div_u16 : (@u16, @u16) -> (@u16, @u16)
-let builtin @div_u32 : (@u32, @u32) -> (@u32, @u32)
-let builtin @div_u64 : (@u64, @u64) -> (@u64, @u64)
-let builtin @div_f32 : (@f32, @f32) -> @f32
-let builtin @div_f64 : (@f64, @f64) -> @f64
+def builtin @div_i8 (@i8,  @i8) : (@i8,  @i8)
+def builtin @div_i16(@i16, @i16): (@i16, @i16)
+def builtin @div_i32(@i32, @i32): (@i32, @i32)
+def builtin @div_i64(@i64, @i64): (@i64, @i64)
+def builtin @div_u8 (@u8,  @u8) : (@u8,  @u8)
+def builtin @div_u16(@u16, @u16): (@u16, @u16)
+def builtin @div_u32(@u32, @u32): (@u32, @u32)
+def builtin @div_u64(@u64, @u64): (@u64, @u64)
+def builtin @div_f32(@f32, @f32): @f32
+def builtin @div_f64(@f64, @f64): @f64
 
-let builtin @div_isize : (@isize, @isize) -> (@isize, @isize)
-let builtin @div_usize : (@usize, @usize) -> (@usize, @usize)
+def builtin @div_isize(@isize, @isize): (@isize, @isize)
+def builtin @div_usize(@usize, @usize): (@usize, @usize)
 
-type Int8 = { value : @i8 }
-type Int16 = { value : @i16 }
-type Int32 = { value : @i32 }
-type Int64 = { value : @i64 }
-type UInt8 = { value : @u8 }
-type UInt16 = { value : @u16 }
-type UInt32 = { value : @u32 }
-type UInt64 = { value : @u64 }
-type Float32 = { value : @f32 }
-type Float64 = { value : @f64 }
+type Int8 =  record { value : @i8 }
+type Int16 =  record { value : @i16 }
+type Int32 =  record { value : @i32 }
+type Int64 =  record { value : @i64 }
+type UInt8 =  record { value : @u8 }
+type UInt16 =  record { value : @u16 }
+type UInt32 =  record { value : @u32 }
+type UInt64 =  record { value : @u64 }
+type Float32 =  record { value : @f32 }
+type Float64 =  record { value : @f64 }
 
-type Int = { value : @isize }
-type UInt = { value : @usize }
+type Int =  record { value : @isize }
+type UInt =  record { value : @usize }
 
+def builtin @llvm_ir(@str): Unit
+def builtin @asm(@str): Unit
 
-type Rational<T : Type with Add + Sub + Mul + Div> = {
-    numinator : T,
-    denominator : T
-}
+def builtin @typeof<T>(x : T) => T
 
-trait Add(Self) {
-    let Output : Type
-    let add : (Self, Self) -> Output
-}
+def the(T : Type, x : T) : T => x
 
-instance Add(Int8) {
-    Output = Int8
-    add = (self, y) => Int8 { value : @add_i8(self.value, y.value) }
-}
-
-instance Add(Int16) {
-    Output = Int16
-    add = (self, y) => Int16 { value : @add_i16(self.value, y.value) }
-}
-
-instance Add(Int32) {
-    Output = Int32
-    add = (self, y) => Int32 { value : @add_i32(self.value, y.value) }
-}
-
-instance Add(Int64) {
-    Output = Int64
-    add = (self, y) => Int64 { value : @add_i64(self.value, y.value) }
-}
-
-instance Add(UInt8) {
-    Output = UInt8
-    add = (self, y) => UInt8 { value : @add_u8(self.value, y.value) }
-}
-
-instance Add(UInt16) {
-    Output = UInt16
-    add = (self, y) => UInt16 { value : @add_u16(self.value, y.value) }
-}
-
-instance Add(UInt32) {
-    Output = UInt32
-    add = (self, y) => UInt32 { value : @add_u32(self.value, y.value) }
-}
-
-instance Add(UInt64) {
-    Output = UInt64
-    add = (self, y) => UInt64 { value : @add_u64(self.value, y.value) }
-}
-
-instance Add(Float32) {
-    Output = Float32
-    add = (self, y) => Float32 { value : @add_f32(self.value, y.value) }
-}
-
-instance Add(Float64) {
-    Output = Float64
-    add = (self, y) => Float64 { value : @add_f64(self.value, y.value) }
-}
-
-instance Add(Int) {
-    Output = Int
-    add = (self, y) => Int { value : @add_isize(self.value, y.value) }
-}
-
-instance Add(UInt) {
-    Output = UInt
-    add = (self, y) => UInt { value : @add_usize(self.value, y.value) }
-}
-
-instance Add(Rational) {
-    Output = Rational
-    add = (self, y) => Rational {
-        numinator : self.numinator * y.denominator + y.numinator * self.denominator,
-        denominator : self.denominator * y.denominator
-    }
-}
-
-trait Mul(Self) {
-    let Output : Type
-    let mul : (Self, Self) -> Output
-}
-
-instance Mul(Int8) {
-    Output = Int8
-    mul = (self, y) => Int8 { value : @mul_i8(self.value, y.value) }
-}
-
-instance Mul(Int16) {
-    Output = Int16
-    mul = (self, y) => Int16 { value : @mul_i16(self.value, y.value) }
-}
-
-instance Mul(Int32) {
-    Output = Int32
-    mul = (self, y) => Int32 { value : @mul_i32(self.value, y.value) }
-}
-
-instance Mul(Int64) {
-    Output = Int64
-    mul = (self, y) => Int64 { value : @mul_i64(self.value, y.value) }
-}
-
-instance Mul(UInt8) {
-    Output = UInt8
-    mul = (self, y) => UInt8 { value : @mul_u8(self.value, y.value) }
-}
-
-instance Mul(UInt16) {
-    Output = UInt16
-    mul = (self, y) => UInt16 { value : @mul_u16(self.value, y.value) }
-}
-
-instance Mul(UInt32) {
-    Output = UInt32
-    mul = (self, y) => UInt32 { value : @mul_u32(self.value, y.value) }
-}
-
-instance Mul(UInt64) {
-    Output = UInt64
-    mul = (self, y) => UInt64 { value : @mul_u64(self.value, y.value) }
-}
-
-instance Mul(Float32) {
-    Output = Float32
-    mul = (self, y) => Float32 { value : @mul_f32(self.value, y.value) }
-}
-
-instance Mul(Float64) {
-    Output = Float64
-    mul = (self, y) => Float64 { value : @mul_f64(self.value, y.value) }
-}
-
-instance Mul(Int) {
-    Output = Int
-    mul = (self, y) => Int { value : @mul_isize(self.value, y.value) }
-}
-
-instance Mul(UInt) {
-    Output = UInt
-    mul = (self, y) => UInt { value : @mul_usize(self.value, y.value) }
-}
-
-instance Mul(Rational) {
-    Output = Rational
-    mul = (self, y) => Rational {
-        numinator : self.numinator * y.numinator,
-        denominator : self.denominator * y.denominator
-    }
-}
-
-
-let builtin @llvm_ir : (@str) -> Unit
-let builtin @asm : (@str) -> Unit
-
-let builtin @typeof = <T>(x : T) => T
-
-let the = (T : Type, x : T) : T => x
-
-let id = <T: Type>(x : T) : T => x
+def id<T: Type>(x : T) : T => x
 
 type Void
 
 type PhantomData<Type>
 
-type Equal<A : Type, B : Type>(x : A, y : B)
-    = Refl<A : Type, x : A> : Equal(x, x) 
+type Equal<A : Type, B : Type>(x : A, y : B) =
+    | Refl<A : Type, x : A> : Equal(x, x) 
 
 # the(Equal(2, 3), Refl) shall fail to typecheck
 
-type Ordering = Lt | Eq | Gt 
+type Ordering =
+    | Lt | Eq | Gt 
 
-type Option(T : Type) = None | Some(T)
-type Either(L : Type, R : Type) = Left(L) | Right(R)
-type Result(T : Type, E : Type) = Ok(T) | Err(E)
+type Option(T : Type) = 
+    | None 
+    | Some(T)
 
-trait Functor(Self : (Type) -> Type) {
-    let map : <A : Type, B : Type>((A) -> B, Self(A)) -> Self(B)
-}
+type Either(L : Type, R : Type) =
+    | Left(L) 
+    | Right(R)
 
-trait Applicative(Self : (Type) -> Type with Functor) {
-    let pure : <A : Type>(A) -> Self(A)
-
-    let apply : <A : Type, B : Type>(
-        Self((A) -> B), 
-        Self(A)
-    ) -> Self(B)
-}
-
-trait Monad(Self : (Type) -> Type with Applicative + Functor) {
-    let join : <A: Type>(Self(Self(A))) -> Self(A)
-
-    let bind : <A : Type, B : Type>((A) -> Self(B), Self(A)) -> Self(B)
-}
-
-instance Functor(Option) {
-    map = (f : (A) -> B, x) => match x {
-        None => None,
-        Some(x) => Some(f(x))
-    }
-}
-
-instance Applicative(Option) {
-    pure = (x) => Some(x)
-
-    apply = (f, x) => match f {
-        None => None,
-        Some(f) => match x {
-            None => None,
-            Some(x) => Some(f(x))
-        }
-    }
-}
-
-instance Monad(Option) {
-    join = (x) => match x {
-        None => None,
-        Some(x) => x
-    }
-
-    bind = (f, x) => match x {
-        None => None,
-        Some(x) => f(x)
-    }
-}
+type Result(T : Type, E : Type) =
+    | Ok(T) 
+    | Err(E)

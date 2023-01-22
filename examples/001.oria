@@ -1,6 +1,0 @@
-# Just testing the parser
-import std
-
-use std::io::*
-
-use std::io::fs::{a as aaa,b,c::{x,y},d::e}

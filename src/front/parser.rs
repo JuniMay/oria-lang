@@ -8,762 +8,939 @@ use pest_derive::Parser;
 #[grammar = "front/grammar.pest"]
 struct OriaParser;
 
+/// Generate the parse tree.
 pub fn generate_parse_tree(source: &str) -> Result<Pairs<Rule>, Error<Rule>> {
-    OriaParser::parse(Rule::compunit, source)
+    OriaParser::parse(Rule::CompUnit, source)
 }
 
+/// Generate AST from the parse tree.
 pub fn handle_compunit(source: &str) -> Result<CompUnit, Error<Rule>> {
-    let pairs = OriaParser::parse(Rule::compunit, source)?
-        .next()
-        .unwrap()
-        .into_inner();
-
-    let mut items = Vec::new();
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::item => items.push(handle_item(pair)),
-            Rule::EOI => {}
-            _ => {
-                println!("Unexpected rule: {:?}", pair.as_rule());
+    let pair = OriaParser::parse(Rule::CompUnit, source)?.next().unwrap();
+    let span = pair.as_span();
+    let items = pair
+        .into_inner()
+        .map(|pair| {
+            if let Rule::Item = pair.as_rule() {
+                Some(handle_item(pair))
+            } else {
+                None
             }
-        }
-    }
-    Ok(CompUnit::new(items))
+        })
+        .filter(|maybe_item| maybe_item.is_some())
+        .map(|maybe_item| maybe_item.unwrap())
+        .collect();
+    return Ok(CompUnit::new(items, span));
 }
 
-pub fn handle_expr(pair: Pair<Rule>) -> Expr {
-    let rule = pair.into_inner().next().unwrap();
-    match rule.as_rule() {
-        Rule::op_expr => handle_op_expr(rule.into_inner()),
+fn handle_expr(pair: Pair<Rule>) -> Expr {
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::Return => handle_return(pair),
+        Rule::Break => handle_break(pair),
+        Rule::Continue => handle_continue(pair),
+        Rule::Assign => handle_assign(pair),
+        Rule::OpExpr => handle_op_expr(pair),
+        Rule::FnExpr => handle_fn_expr(pair),
         _ => unreachable!(),
     }
 }
 
-pub fn handle_op_expr(pairs: Pairs<Rule>) -> Expr {
+fn handle_return(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let maybe_pair = pair.into_inner().next();
+    let mut expr = match maybe_pair {
+        None => Expr::mk_return(None),
+        Some(pair) => Expr::mk_return(Some(handle_expr(pair))),
+    };
+    expr.set_span(span);
+    return expr;
+}
+
+fn handle_break(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let mut label = None;
+    let mut expr = None;
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Label => {
+                label = Some(handle_label(pair));
+            }
+            Rule::Expr => {
+                expr = Some(handle_expr(pair));
+            }
+            _ => unreachable!(),
+        }
+    }
+    let mut expr = Expr::mk_break(label, expr);
+    expr.set_span(span);
+    return expr;
+}
+
+fn handle_continue(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let maybe_pair = pair.into_inner().next();
+    let mut expr = match maybe_pair {
+        None => Expr::mk_continue(None),
+        Some(pair) => Expr::mk_continue(Some(handle_label(pair))),
+    };
+    expr.set_span(span);
+    return expr;
+}
+
+fn handle_assign(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let mut pairs = pair.into_inner();
+    let lhs = handle_op_expr(pairs.next().unwrap());
+    let rhs = handle_expr(pairs.next().unwrap());
+    let mut expr = Expr::mk_assign(lhs, rhs);
+    expr.set_span(span);
+    return expr;
+}
+
+fn handle_fn_expr(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let mut pairs = pair.into_inner();
+    let mut lhs = handle_fn_lhs(pairs.next().unwrap());
+    let rhs = handle_expr(pairs.next().unwrap());
+
+    lhs.expr = Some(Box::new(rhs));
+
+    let mut expr = Expr::mk_fn(lhs);
+    expr.set_span(span);
+    return expr;
+}
+
+fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
+    let pairs = pair.into_inner();
+    let mut params = Vec::new();
+    let mut ret_ty = None;
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::FnParamsImplicit => {
+                params.extend(handle_fn_params(pair, true));
+            }
+            Rule::FnParamsExplicit => {
+                params.extend(handle_fn_params(pair, false));
+            }
+            Rule::QualifiedPath => {
+                ret_ty = Some(handle_qualified_path(pair));
+            }
+            _ => unreachable!(),
+        }
+    }
+    let lhs = Fn::new(params, ret_ty, None);
+    return lhs;
+}
+
+fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
+    let pairs = pair.into_inner();
+    let mut params = Vec::new();
+    for pair in pairs {
+        // `Ident?` and `QualifiedPath`
+        let pairs = pair.into_inner();
+        // Optional name of the parameter
+        let mut name = None;
+        // Optional type of the parameter
+        let mut ty = None;
+        // Traverse the `Ident?` and `QualifiedPath`
+        for pair in pairs {
+            match pair.as_rule() {
+                Rule::Ident => name = Some(pair.as_str().to_string()),
+                Rule::QualifiedPath => ty = Some(handle_qualified_path(pair)),
+                _ => unreachable!(),
+            }
+        }
+        params.push(FnParam::new(name, ty, implicit));
+    }
+    return params;
+}
+
+fn handle_label(pair: Pair<Rule>) -> Label {
+    pair.as_str().to_string()
+}
+
+fn handle_op_expr(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
+    let pairs = pair.into_inner();
+
     use pest::pratt_parser::Assoc::*;
     use pest::pratt_parser::Op;
     use pest::pratt_parser::PrattParser;
 
-    let parser = PrattParser::new()
-        .op(Op::infix(Rule::or, Left))
-        .op(Op::infix(Rule::and, Left))
-        .op(Op::infix(Rule::eq, Left)
-            | Op::infix(Rule::ne, Left)
-            | Op::infix(Rule::lt, Left)
-            | Op::infix(Rule::le, Left)
-            | Op::infix(Rule::gt, Left)
-            | Op::infix(Rule::ge, Left))
-        .op(Op::infix(Rule::pipe, Left))
-        .op(Op::infix(Rule::bit_or, Left))
-        .op(Op::infix(Rule::bit_xor, Left))
-        .op(Op::infix(Rule::bit_and, Left))
-        .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
-        .op(Op::infix(Rule::mul, Left) | Op::infix(Rule::div, Left) | Op::infix(Rule::rem, Left))
-        .op(Op::infix(Rule::frac, Left))
-        .op(Op::infix(Rule::shl, Right) | Op::infix(Rule::shr, Right))
-        .op(Op::prefix(Rule::pos)
-            | Op::prefix(Rule::neg)
-            | Op::prefix(Rule::not)
-            | Op::prefix(Rule::bit_not)
-            | Op::prefix(Rule::ref_op)
-            | Op::prefix(Rule::deref_op))
-        .op(Op::infix(Rule::pow, Right));
+    let pratt = PrattParser::new()
+        .op(Op::infix(Rule::Range, Left) | Op::infix(Rule::RangeInclusive, Left))
+        .op(Op::infix(Rule::LogicalOr, Left))
+        .op(Op::infix(Rule::LogicalAnd, Left))
+        .op(Op::infix(Rule::Eq, Left)
+            | Op::infix(Rule::Ne, Left)
+            | Op::infix(Rule::Lt, Left)
+            | Op::infix(Rule::Le, Left)
+            | Op::infix(Rule::Gt, Left)
+            | Op::infix(Rule::Ge, Left))
+        .op(Op::infix(Rule::BitwiseOr, Left))
+        .op(Op::infix(Rule::BitwiseXor, Left))
+        .op(Op::infix(Rule::BitwiseAnd, Left))
+        .op(Op::infix(Rule::Add, Left) | Op::infix(Rule::Sub, Left))
+        .op(Op::infix(Rule::Mul, Left) | Op::infix(Rule::Div, Left) | Op::infix(Rule::Rem, Left))
+        .op(Op::infix(Rule::Shl, Right) | Op::infix(Rule::Shr, Right))
+        .op(Op::prefix(Rule::RangeTo)
+            | Op::prefix(Rule::RangeToInclusive)
+            | Op::prefix(Rule::Pos)
+            | Op::prefix(Rule::Neg)
+            | Op::prefix(Rule::LogicalNot)
+            | Op::prefix(Rule::BitwiseNot)
+            | Op::prefix(Rule::Ref)
+            | Op::prefix(Rule::Deref))
+        .op(Op::postfix(Rule::RangeFrom));
 
-    parser
-        .map_primary(handle_app_expr)
-        .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::pos => Expr::mk_unary(UnaryOp::Pos, Box::new(rhs)),
-            Rule::neg => Expr::mk_unary(UnaryOp::Neg, Box::new(rhs)),
-            Rule::not => Expr::mk_unary(UnaryOp::Not, Box::new(rhs)),
-            Rule::bit_not => Expr::mk_unary(UnaryOp::BitNot, Box::new(rhs)),
-            Rule::ref_op => Expr::mk_unary(UnaryOp::Ref, Box::new(rhs)),
-            Rule::deref_op => Expr::mk_unary(UnaryOp::Deref, Box::new(rhs)),
+    let mut parser = pratt
+        .map_primary(handle_qualified_expr)
+        .map_prefix(|op, expr| match op.as_rule() {
+            Rule::RangeTo => Expr::mk_range(RangeKind::To, None, Some(expr)),
+            Rule::RangeToInclusive => Expr::mk_range(RangeKind::ToInclusive, None, Some(expr)),
+            Rule::Pos => Expr::mk_unary(UnaryOp::Pos, expr),
+            Rule::Neg => Expr::mk_unary(UnaryOp::Neg, expr),
+            Rule::LogicalNot => Expr::mk_unary(UnaryOp::Not, expr),
+            Rule::BitwiseNot => Expr::mk_unary(UnaryOp::BitNot, expr),
+            Rule::Ref => Expr::mk_unary(UnaryOp::Ref, expr),
+            Rule::Deref => Expr::mk_unary(UnaryOp::Deref, expr),
+            _ => unreachable!(),
+        })
+        .map_postfix(|expr, op| match op.as_rule() {
+            Rule::RangeFrom => Expr::mk_range(RangeKind::From, Some(expr), None),
             _ => unreachable!(),
         })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
-            Rule::or => Expr::mk_binary(BinOp::Or, Box::new(lhs), Box::new(rhs)),
-            Rule::and => Expr::mk_binary(BinOp::And, Box::new(lhs), Box::new(rhs)),
-            Rule::eq => Expr::mk_binary(BinOp::Eq, Box::new(lhs), Box::new(rhs)),
-            Rule::ne => Expr::mk_binary(BinOp::Ne, Box::new(lhs), Box::new(rhs)),
-            Rule::lt => Expr::mk_binary(BinOp::Lt, Box::new(lhs), Box::new(rhs)),
-            Rule::le => Expr::mk_binary(BinOp::Le, Box::new(lhs), Box::new(rhs)),
-            Rule::gt => Expr::mk_binary(BinOp::Gt, Box::new(lhs), Box::new(rhs)),
-            Rule::ge => Expr::mk_binary(BinOp::Ge, Box::new(lhs), Box::new(rhs)),
-            Rule::pipe => Expr::mk_binary(BinOp::Pipe, Box::new(lhs), Box::new(rhs)),
-            Rule::bit_or => Expr::mk_binary(BinOp::BitOr, Box::new(lhs), Box::new(rhs)),
-            Rule::bit_xor => Expr::mk_binary(BinOp::BitXor, Box::new(lhs), Box::new(rhs)),
-            Rule::bit_and => Expr::mk_binary(BinOp::BitAnd, Box::new(lhs), Box::new(rhs)),
-            Rule::add => Expr::mk_binary(BinOp::Add, Box::new(lhs), Box::new(rhs)),
-            Rule::sub => Expr::mk_binary(BinOp::Sub, Box::new(lhs), Box::new(rhs)),
-            Rule::mul => Expr::mk_binary(BinOp::Mul, Box::new(lhs), Box::new(rhs)),
-            Rule::div => Expr::mk_binary(BinOp::Div, Box::new(lhs), Box::new(rhs)),
-            Rule::rem => Expr::mk_binary(BinOp::Rem, Box::new(lhs), Box::new(rhs)),
-            Rule::frac => Expr::mk_binary(BinOp::Frac, Box::new(lhs), Box::new(rhs)),
-            Rule::shl => Expr::mk_binary(BinOp::Shl, Box::new(lhs), Box::new(rhs)),
-            Rule::shr => Expr::mk_binary(BinOp::Shr, Box::new(lhs), Box::new(rhs)),
-            Rule::pow => Expr::mk_binary(BinOp::Pow, Box::new(lhs), Box::new(rhs)),
-            Rule::as_ => Expr::mk_binary(BinOp::As, Box::new(lhs), Box::new(rhs)),
+            Rule::Range => Expr::mk_range(RangeKind::Exclusive, Some(lhs), Some(rhs)),
+            Rule::RangeInclusive => Expr::mk_range(RangeKind::Inclusive, Some(lhs), Some(rhs)),
+            Rule::LogicalOr => Expr::mk_binary(BinOp::Or, lhs, rhs),
+            Rule::LogicalAnd => Expr::mk_binary(BinOp::And, lhs, rhs),
+            Rule::Eq => Expr::mk_binary(BinOp::Eq, lhs, rhs),
+            Rule::Ne => Expr::mk_binary(BinOp::Ne, lhs, rhs),
+            Rule::Lt => Expr::mk_binary(BinOp::Lt, lhs, rhs),
+            Rule::Le => Expr::mk_binary(BinOp::Le, lhs, rhs),
+            Rule::Gt => Expr::mk_binary(BinOp::Gt, lhs, rhs),
+            Rule::Ge => Expr::mk_binary(BinOp::Ge, lhs, rhs),
+            Rule::BitwiseOr => Expr::mk_binary(BinOp::BitOr, lhs, rhs),
+            Rule::BitwiseXor => Expr::mk_binary(BinOp::BitXor, lhs, rhs),
+            Rule::BitwiseAnd => Expr::mk_binary(BinOp::BitAnd, lhs, rhs),
+            Rule::Add => Expr::mk_binary(BinOp::Add, lhs, rhs),
+            Rule::Sub => Expr::mk_binary(BinOp::Sub, lhs, rhs),
+            Rule::Mul => Expr::mk_binary(BinOp::Mul, lhs, rhs),
+            Rule::Div => Expr::mk_binary(BinOp::Div, lhs, rhs),
+            Rule::Rem => Expr::mk_binary(BinOp::Rem, lhs, rhs),
+            Rule::Shl => Expr::mk_binary(BinOp::Shl, lhs, rhs),
+            Rule::Shr => Expr::mk_binary(BinOp::Shr, lhs, rhs),
             _ => unreachable!(),
-        })
-        .parse(pairs)
+        });
+
+    let mut expr = parser.parse(pairs);
+    expr.set_span(span);
+
+    return expr;
 }
 
-pub fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
+fn handle_qualified_expr(pair: Pair<Rule>) -> Expr {
+    let path = handle_qualified_path(pair.into_inner().next().unwrap());
+    let expr = if path.len() == 1 {
+        path[0].clone()
+    } else {
+        Expr::mk_qualified_path(path)
+    };
+    return expr;
+}
+
+fn handle_qualified_path(pair: Pair<Rule>) -> QualifiedPath {
+    pair.into_inner().map(handle_atomic_expr).collect()
+}
+
+fn handle_atomic_expr(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
     let mut pairs = pair.into_inner();
-    let fn_ty_params_pair = pairs.next().unwrap();
-    let params = handle_fn_ty_params(fn_ty_params_pair);
-    let rhs_pair = pairs.next().unwrap();
-    let rhs = handle_app_expr(rhs_pair);
-
-    Expr::mk_fn_ty(params, Box::new(rhs))
-}
-
-pub fn handle_fn_ty_params(pair: Pair<Rule>) -> Vec<Field> {
-    let mut pairs = pair.into_inner();
-    let mut params = Vec::new();
-    while let Some(p) = pairs.next() {
-        match p.as_rule() {
-            Rule::fn_ty_params_explicit => {
-                params.extend(handle_fn_ty_params_explicit(p));
-            }
-            Rule::fn_ty_params_implicit => {
-                params.extend(handle_fn_ty_params_implicit(p));
-            }
-            _ => unreachable!(),
-        }
-    }
-    params
-}
-
-pub fn handle_fn_ty_params_explicit(pair: Pair<Rule>) -> Vec<Field> {
-    pair.into_inner().map(handle_field).collect()
-}
-
-pub fn handle_fn_ty_params_implicit(pair: Pair<Rule>) -> Vec<Field> {
-    pair.into_inner()
-        .map(|p| {
-            let mut field = handle_field(p);
-            field.implicit = true;
-            field
-        })
-        .collect()
-}
-
-pub fn handle_spec(pair: Pair<Rule>) -> Spec {
-    let spec = pair.as_str();
-    match spec {
-        "mut" => Spec::Mut,
-        "extern" => Spec::Extern,
-        "builtin" => Spec::Builtin,
-        "comptime" => Spec::Comptime,
-        _ => unreachable!(),
-    }
-}
-
-pub fn handle_field(pair: Pair<Rule>) -> Field {
-    let pairs = pair.into_inner();
-
-    let mut spec = Spec::None;
-    let mut ident = None;
-    let mut expr = None;
-    let mut with = Vec::new();
-
+    let mut expr = handle_primary_expr(pairs.next().unwrap());
     for pair in pairs {
-        match pair.as_rule() {
-            Rule::spec => spec = handle_spec(pair),
-            Rule::ident => ident = Some(pair.as_str().to_string()),
-            Rule::app_expr => expr = Some(handle_app_expr(pair)),
-            Rule::with_clause => with = handle_with_clause(pair),
-            _ => unreachable!(),
+        if let Rule::FnArgs = pair.as_rule() {
+            expr = Expr::mk_apply(expr, handle_fn_args(pair));
         }
     }
-
-    Field::new(spec, ident, expr, with)
+    expr.set_span(span);
+    return expr;
 }
 
-pub fn handle_with_clause(pair: Pair<Rule>) -> Vec<String> {
-    pair.into_inner()
-        .map(|pair| pair.as_str().to_string())
-        .collect()
-}
-
-pub fn handle_app_expr(pair: Pair<Rule>) -> Expr {
-    let pairs = pair.into_inner().collect::<Vec<_>>();
-    let primary = handle_primary_expr(pairs[0].clone());
-    if pairs.len() == 1 {
-        primary
-    } else {
-        let mut expr = primary;
-        for pair in pairs[1..].iter() {
-            expr = Expr::mk_apply(Box::new(expr), handle_app_args(pair.clone()));
-        }
-        expr
-    }
-}
-
-pub fn handle_app_args(pair: Pair<Rule>) -> Vec<FieldInit> {
+fn handle_primary_expr(pair: Pair<Rule>) -> Expr {
+    let span = pair.as_span();
     let pair = pair.into_inner().next().unwrap();
-    match pair.as_rule() {
-        Rule::app_args_explicit => handle_app_args_explicit(pair),
-        Rule::app_args_implicit => handle_app_args_implicit(pair),
+    let mut expr = match pair.as_rule() {
+        Rule::Universe => Expr::mk_universe(),
+        Rule::Unit => Expr::mk_unit(),
+        Rule::Literal => Expr::mk_lit(handle_literal(pair)),
+        Rule::ExprWithBlock => handle_expr_with_block(pair),
+        Rule::Ident => Expr::mk_ident(pair.as_str().to_string()),
+        Rule::RangeFull => Expr::mk_range(RangeKind::Full, None, None),
+        Rule::FnTy => handle_fn_ty(pair),
+        Rule::Tuple => handle_tuple(pair),
+        Rule::Expr => handle_expr(pair),
         _ => unreachable!(),
-    }
+    };
+    expr.set_span(span);
+    return expr;
 }
 
-pub fn handle_app_args_explicit(pair: Pair<Rule>) -> Vec<FieldInit> {
-    let mut args = Vec::new();
-    for pair in pair.into_inner() {
-        args.push(handle_app_arg(pair));
-    }
-    args
-}
-
-pub fn handle_app_args_implicit(pair: Pair<Rule>) -> Vec<FieldInit> {
-    let mut args = Vec::new();
-    for pair in pair.into_inner() {
-        let mut arg = handle_app_arg(pair);
-        arg.implicit = true;
-        args.push(arg);
-    }
-    args
-}
-
-pub fn handle_app_arg(pair: Pair<Rule>) -> FieldInit {
-    let rule = pair.into_inner().next().unwrap();
-    match rule.as_rule() {
-        Rule::app_arg_named => {
-            let pairs = rule.into_inner().collect::<Vec<_>>();
-            let name = pairs[0].as_str().to_string();
-            let expr = handle_app_expr(pairs[1].clone());
-            FieldInit::new(Some(name), expr)
-        }
-        Rule::app_expr => FieldInit::new(None, handle_app_expr(rule)),
-        _ => unreachable!(),
-    }
-}
-
-pub fn handle_primary_expr(pair: Pair<Rule>) -> Expr {
-    let pairs = pair.into_inner().collect::<Vec<_>>();
-    if pairs.len() == 1 {
-        match pairs[0].as_rule() {
-            Rule::fn_expr => handle_fn_expr(pairs[0].clone()),
-            Rule::atomic_expr => handle_atomic_expr(pairs[0].clone()),
-            _ => unreachable!(),
-        }
-    } else {
-        let mut expr = handle_atomic_expr(pairs[0].clone());
-        for pair in pairs[1..].iter() {
-            let rhs = handle_atomic_expr(pair.clone());
-            expr = Expr::mk_dot(Box::new(expr), Box::new(rhs));
-        }
-        expr
-    }
-}
-
-pub fn handle_fn_expr(pair: Pair<Rule>) -> Expr {
-    let mut pairs = pair.into_inner();
-    let (params, ret) = handle_fn_lhs(pairs.next().unwrap());
-    let body = handle_expr(pairs.next().unwrap());
-    Expr::mk_fn(params, ret, Box::new(body))
-}
-
-pub fn handle_fn_lhs(pair: Pair<Rule>) -> (Vec<Field>, Option<Box<Expr>>) {
-    let mut pairs = pair.into_inner();
-    let fn_params_pair = pairs.next().unwrap();
-    let params = handle_fn_params(fn_params_pair);
-
-    let maybe_expr_pair = pairs.next();
-
-    match maybe_expr_pair {
-        Some(pair) => {
-            let expr = handle_expr(pair);
-            (params, Some(Box::new(expr)))
-        }
-        None => (params, None),
-    }
-}
-
-pub fn handle_fn_params(pair: Pair<Rule>) -> Vec<Field> {
-    let mut pairs = pair.into_inner();
-    let mut params = Vec::new();
-    while let Some(p) = pairs.next() {
-        match p.as_rule() {
-            Rule::fn_params_explicit => {
-                params.extend(handle_fn_ty_params_explicit(p));
-            }
-            Rule::fn_params_implicit => {
-                params.extend(handle_fn_ty_params_implicit(p));
-            }
-            _ => unreachable!(),
-        }
-    }
-    params
-}
-
-pub fn handle_fn_params_explicit(pair: Pair<Rule>) -> Vec<Field> {
-    pair.into_inner().map(handle_field).collect()
-}
-
-pub fn handle_fn_params_implicit(pair: Pair<Rule>) -> Vec<Field> {
-    pair.into_inner()
-        .map(|p| {
-            let mut field = handle_field(p);
-            field.implicit = true;
-            field
-        })
-        .collect()
-}
-
-pub fn handle_atomic_expr(pair: Pair<Rule>) -> Expr {
+fn handle_literal(pair: Pair<Rule>) -> Lit {
     let pair = pair.into_inner().next().unwrap();
-    match pair.as_rule() {
-        Rule::universe => handle_universe(pair),
-        Rule::unit => Expr::mk_unit(),
-        Rule::literal => Expr::mk_literal(handle_literal(pair)),
-        Rule::match_expr => handle_match_expr(pair),
-        Rule::loop_expr => handle_loop_expr(pair),
-        Rule::while_expr => handle_while_expr(pair),
-        Rule::if_expr => handle_if_expr(pair),
-        Rule::record_init => handle_record_init(pair),
-        Rule::chained => Expr::mk_chained(handle_chained(pair)),
-        Rule::tuple => handle_tuple(pair),
-        Rule::expr => handle_expr(pair),
-        Rule::block => Expr::mk_block(handle_block(pair)),
-        Rule::fn_ty => handle_fn_ty(pair),
-        _ => unreachable!(),
-    }
-}
-
-pub fn handle_universe(pair: Pair<Rule>) -> Expr {
-    let maybe_level_pair = pair.into_inner().next();
-    match maybe_level_pair {
-        Some(pair) => Expr::mk_type(pair.as_str().parse().unwrap()),
-        None => Expr::mk_type(0),
-    }
-}
-
-pub fn handle_literal(pair: Pair<Rule>) -> Lit {
-    let pair = pair.into_inner().next().unwrap();
-
     let kind = match pair.as_rule() {
-        Rule::floating => LitKind::Floating,
-        Rule::hex_integer | Rule::oct_integer | Rule::bin_integer | Rule::dec_integer => {
+        Rule::DecInteger | Rule::HexInteger | Rule::OctInteger | Rule::BinInteger => {
             LitKind::Integer
         }
+        Rule::Floating => LitKind::Floating,
         _ => unreachable!(),
     };
-
     let radix = match pair.as_rule() {
-        Rule::floating => Radix::Dec,
-        Rule::hex_integer => Radix::Hex,
-        Rule::oct_integer => Radix::Oct,
-        Rule::bin_integer => Radix::Bin,
-        Rule::dec_integer => Radix::Dec,
-        _ => unreachable!(),
+        Rule::DecInteger => Radix::Dec,
+        Rule::HexInteger => Radix::Hex,
+        Rule::OctInteger => Radix::Oct,
+        Rule::BinInteger => Radix::Bin,
+        _ => Radix::Dec,
     };
-
     let pairs = pair.into_inner();
-
-    let mut suffix = None;
     let mut text = String::new();
-
+    let mut suffix = None;
     for pair in pairs {
         match pair.as_rule() {
-            Rule::literal_suffix => suffix = Some(handle_literal_suffix(pair)),
-            Rule::hex_prefix | Rule::oct_prefix | Rule::bin_prefix => {}
+            Rule::LiteralSuffix => suffix = Some(handle_literal_suffix(pair)),
             _ => text.push_str(pair.as_str()),
         }
     }
-
-    text = text.replace("_", "");
-
-    Lit::new(kind, radix, text, suffix)
+    let lit = Lit {
+        kind,
+        radix,
+        suffix,
+        text,
+    };
+    return lit;
 }
 
-pub fn handle_literal_suffix(pair: Pair<Rule>) -> Suffix {
+fn handle_literal_suffix(pair: Pair<Rule>) -> LitSuffix {
     match pair.as_str() {
-        "u8" => Suffix::U(8),
-        "u16" => Suffix::U(16),
-        "u32" => Suffix::U(32),
-        "u64" => Suffix::U(64),
-        "i8" => Suffix::I(8),
-        "i16" => Suffix::I(16),
-        "i32" => Suffix::I(32),
-        "i64" => Suffix::I(64),
-        "f32" => Suffix::F(32),
-        "f64" => Suffix::F(64),
-        "usize" => Suffix::USize,
-        "isize" => Suffix::ISize,
+        "i8" => LitSuffix::I8,
+        "i16" => LitSuffix::I16,
+        "i32" => LitSuffix::I32,
+        "i64" => LitSuffix::I64,
+        "u8" => LitSuffix::U8,
+        "u16" => LitSuffix::U16,
+        "u32" => LitSuffix::U32,
+        "u64" => LitSuffix::U64,
+        "f32" => LitSuffix::F32,
+        "f64" => LitSuffix::F64,
+        "isize" => LitSuffix::ISize,
+        "usize" => LitSuffix::USize,
         _ => unreachable!(),
     }
 }
 
-pub fn handle_match_expr(pair: Pair<Rule>) -> Expr {
-    let mut pairs = pair.into_inner();
-    let expr = handle_expr(pairs.next().unwrap());
-    let mut arms = Vec::new();
-    for pair in pairs {
-        let mut arm_pair = pair.into_inner();
-        let pattern = handle_pattern(arm_pair.next().unwrap());
-        let expr = handle_expr(arm_pair.next().unwrap());
-        arms.push((pattern, expr));
-    }
-    Expr::mk_match(Box::new(expr), arms)
-}
-
-pub fn handle_pattern(pair: Pair<Rule>) -> Pattern {
-    let mut pairs = pair.into_inner().collect::<Vec<_>>();
-    if pairs.len() == 1 {
-        handle_pattern_elem(pairs.pop().unwrap())
-    } else {
-        let mut patterns = Vec::new();
-        for pair in pairs {
-            patterns.push(handle_pattern_elem(pair));
-        }
-        Pattern::Or(patterns)
-    }
-}
-
-pub fn handle_pattern_elem(pair: Pair<Rule>) -> Pattern {
-    let rule = pair.into_inner().next().unwrap();
-    match rule.as_rule() {
-        Rule::wildcard => Pattern::Wildcard,
-        Rule::rest => Pattern::Rest,
-        Rule::range_pattern => handle_range_pattern(rule),
-        Rule::constructor_pattern => handle_constructor_pattern(rule),
-        Rule::literal => Pattern::Literal(handle_literal(rule)),
-        Rule::record_pattern => handle_record_pattern(rule),
-        Rule::tuple_pattern => handle_tuple_pattern(rule),
-        Rule::pattern => handle_pattern(rule),
+fn handle_expr_with_block(pair: Pair<Rule>) -> Expr {
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::Loop => handle_loop(pair),
+        Rule::While => handle_while(pair),
+        Rule::For => handle_for(pair),
+        Rule::If => handle_if(pair),
+        Rule::IfLet => handle_if_let(pair),
+        Rule::Match => handle_match(pair),
+        Rule::Block => Expr::mk_block(handle_block(pair)),
         _ => unreachable!(),
     }
 }
 
-pub fn handle_range_pattern(pair: Pair<Rule>) -> Pattern {
-    let rule = pair.into_inner().next().unwrap();
-    let kind = match rule.as_rule() {
-        Rule::range_pattern_inclusive => RangeKind::Inclusive,
-        Rule::range_pattern_exclusive => RangeKind::Exclusive,
-        _ => unreachable!(),
-    };
-    let mut bounds = rule.into_inner();
+fn handle_loop(pair: Pair<Rule>) -> Expr {
+    let mut label = None;
+    let mut block = None;
 
-    let lhs_pair = bounds.next().unwrap().into_inner().next().unwrap();
-    let rhs_pair = bounds.next().unwrap().into_inner().next().unwrap();
-
-    let lhs = match lhs_pair.as_rule() {
-        Rule::literal => RangeBound::Literal(handle_literal(lhs_pair)),
-        Rule::chained => RangeBound::Chained(handle_chained(lhs_pair)),
-        _ => unreachable!(),
-    };
-    let rhs = match rhs_pair.as_rule() {
-        Rule::literal => RangeBound::Literal(handle_literal(rhs_pair)),
-        Rule::chained => RangeBound::Chained(handle_chained(rhs_pair)),
-        _ => unreachable!(),
-    };
-
-    Pattern::Range(kind, lhs, rhs)
-}
-
-pub fn handle_constructor_pattern(pair: Pair<Rule>) -> Pattern {
-    let pairs = pair.into_inner().collect::<Vec<_>>();
-
-    let chained = handle_chained(pairs[0].clone());
-
-    let mut patterns = Vec::new();
-
-    for pair in pairs.into_iter().skip(1) {
-        patterns.push(handle_pattern(pair));
-    }
-
-    Pattern::Constructor(chained, patterns)
-}
-
-pub fn handle_record_pattern(pair: Pair<Rule>) -> Pattern {
-    let pairs = pair.into_inner();
-    let mut elems = Vec::new();
-    for elem_pair in pairs {
-        let pair = elem_pair.into_inner().next().unwrap();
+    for pair in pair.into_inner() {
         match pair.as_rule() {
-            Rule::record_pattern_field => {
-                let mut pairs = pair.into_inner();
-                let ident = pairs.next().unwrap().as_str().to_string();
-                let pattern = handle_pattern(pairs.next().unwrap());
-                elems.push(RecordPatternElem::Field(ident, pattern));
-            }
-            Rule::rest => elems.push(RecordPatternElem::Rest),
+            Rule::Label => label = Some(handle_label(pair)),
+            Rule::Block => block = Some(handle_block(pair)),
             _ => unreachable!(),
         }
     }
-    Pattern::Record(elems)
+
+    return Expr::mk_loop(label, block.unwrap());
 }
 
-pub fn handle_tuple_pattern(pair: Pair<Rule>) -> Pattern {
-    let pairs = pair.into_inner().collect::<Vec<_>>();
-    let mut patterns = Vec::new();
-    for pair in pairs {
-        patterns.push(handle_pattern_elem(pair));
+fn handle_while(pair: Pair<Rule>) -> Expr {
+    let mut label = None;
+    let mut expr = None;
+    let mut block = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Label => label = Some(handle_label(pair)),
+            Rule::Expr => expr = Some(handle_expr(pair)),
+            Rule::Block => block = Some(handle_block(pair)),
+            _ => unreachable!(),
+        }
     }
-    Pattern::Tuple(patterns)
+
+    return Expr::mk_while(label, expr.unwrap(), block.unwrap());
 }
 
-pub fn handle_loop_expr(pair: Pair<Rule>) -> Expr {
-    Expr::mk_loop(handle_block(pair.into_inner().next().unwrap()))
+fn handle_for(pair: Pair<Rule>) -> Expr {
+    let mut label = None;
+    let mut pat = None;
+    let mut expr = None;
+    let mut block = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Label => label = Some(handle_label(pair)),
+            Rule::Pattern => pat = Some(handle_pattern(pair)),
+            Rule::Expr => expr = Some(handle_expr(pair)),
+            Rule::Block => block = Some(handle_block(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    return Expr::mk_for(label, pat.unwrap(), expr.unwrap(), block.unwrap());
 }
 
-pub fn handle_while_expr(pair: Pair<Rule>) -> Expr {
+fn handle_if(pair: Pair<Rule>) -> Expr {
+    let mut expr = None;
+    let mut block = None;
+    let mut else_ = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Expr => expr = Some(handle_expr(pair)),
+            Rule::Block => block = Some(handle_block(pair)),
+            Rule::ExprWithBlock => else_ = Some(handle_expr_with_block(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    return Expr::mk_if(expr.unwrap(), block.unwrap(), else_);
+}
+
+fn handle_if_let(pair: Pair<Rule>) -> Expr {
+    let mut pat = None;
+    let mut expr = None;
+    let mut block = None;
+    let mut else_ = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Pattern => pat = Some(handle_pattern(pair)),
+            Rule::Expr => expr = Some(handle_expr(pair)),
+            Rule::Block => block = Some(handle_block(pair)),
+            Rule::ExprWithBlock => else_ = Some(handle_expr_with_block(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    return Expr::mk_if_let(IfLet::new(
+        pat.unwrap(),
+        expr.unwrap(),
+        block.unwrap(),
+        else_,
+    ));
+}
+
+fn handle_match(pair: Pair<Rule>) -> Expr {
     let mut pairs = pair.into_inner();
     let expr = handle_expr(pairs.next().unwrap());
-    let block = handle_block(pairs.next().unwrap());
-    Expr::mk_while(Box::new(expr), block)
+    let arms = pairs.map(handle_match_arm).collect();
+    return Expr::mk_match(expr, arms);
 }
 
-pub fn handle_if_expr(pair: Pair<Rule>) -> Expr {
+fn handle_match_arm(pair: Pair<Rule>) -> MatchArm {
     let mut pairs = pair.into_inner();
+    let pat = handle_pattern(pairs.next().unwrap());
     let expr = handle_expr(pairs.next().unwrap());
-    let block = handle_block(pairs.next().unwrap());
-    let else_ = match pairs.next() {
-        Some(pair) => Some(Box::new({
+    return MatchArm::new(pat, expr);
+}
+
+fn handle_block(pair: Pair<Rule>) -> Block {
+    let pairs = pair.into_inner();
+    let mut label = None;
+    let mut stmts = Vec::new();
+    let mut comptime = false;
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::BlockSpec => comptime = true,
+            Rule::Label => label = Some(handle_label(pair)),
+            Rule::Stmt => stmts.push(handle_stmt(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    return Block::new(label, stmts, comptime);
+}
+
+fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
+    let pairs = pair.into_inner();
+    let mut params = Vec::new();
+    let mut ret_ty = None;
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::FnTyParamsImplicit => {
+                params.extend(handle_fn_ty_params(pair, true));
+            }
+            Rule::FnTyParamsExplicit => {
+                params.extend(handle_fn_ty_params(pair, false));
+            }
+            Rule::QualifiedPath => {
+                ret_ty = Some(handle_qualified_path(pair));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    let expr = Expr::mk_fn_ty(params, ret_ty.unwrap());
+    return expr;
+}
+
+fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
+    let pairs = pair.into_inner();
+    let mut params = Vec::new();
+    for pair in pairs {
+        // `Ident?` and `QualifiedPath`
+        let pairs = pair.into_inner();
+        // Optional name of the parameter
+        let mut name = None;
+        // Optional type of the parameter
+        let mut ty = None;
+        // Traverse the `Ident?` and `QualifiedPath`
+        for pair in pairs {
             match pair.as_rule() {
-                Rule::block => Expr::mk_block(handle_block(pair)),
-                Rule::if_expr => handle_if_expr(pair),
+                Rule::Ident => name = Some(pair.as_str().to_string()),
+                Rule::QualifiedPath => ty = Some(handle_qualified_path(pair)),
                 _ => unreachable!(),
             }
-        })),
-        None => None,
+        }
+        params.push(FnParam::new(name, ty, implicit));
+    }
+    return params;
+}
+
+fn handle_tuple(pair: Pair<Rule>) -> Expr {
+    Expr::mk_tuple(pair.into_inner().map(handle_expr).collect())
+}
+
+fn handle_fn_args(pair: Pair<Rule>) -> Vec<FnArg> {
+    let pair = pair.into_inner().next().unwrap();
+    let implicit = if let Rule::FnArgsImplicit = pair.as_rule() {
+        true
+    } else {
+        false
     };
-    Expr::mk_if(Box::new(expr), block, else_)
-}
 
-pub fn handle_record_init(pair: Pair<Rule>) -> Expr {
-    let mut pairs = pair.into_inner();
-    let chained = handle_chained(pairs.next().unwrap());
-    let mut elems = Vec::new();
-    for field_pair in pairs {
-        let mut field_pairs = field_pair.into_inner();
-        let ident = field_pairs.next().unwrap().as_str().to_string();
-        let expr = handle_expr(field_pairs.next().unwrap());
-        elems.push((ident, expr));
+    let mut args = Vec::new();
+    // Traverse the list of `FnArg`
+    for pair in pair.into_inner() {
+        // `Ident?` and `Expr`
+        let pairs = pair.into_inner();
+        // Optional name of the argument
+        let mut name = None;
+        // Expression of the argument
+        let mut expr = None;
+        // Traverse the `Ident?` and `Expr`
+        for pair in pairs {
+            match pair.as_rule() {
+                Rule::Ident => name = Some(pair.as_str().to_string()),
+                Rule::Expr => expr = Some(handle_expr(pair)),
+                _ => unreachable!(),
+            }
+        }
+        args.push(FnArg::new(name, expr.unwrap(), implicit));
     }
-    Expr::mk_record_init(chained, elems)
+    return args;
 }
 
-pub fn handle_chained(pair: Pair<Rule>) -> Chained {
-    pair.into_inner()
-        .map(|pair| pair.as_span().as_str().to_string())
-        .collect()
+fn handle_pattern(pair: Pair<Rule>) -> Pat {
+    let pairs: Vec<Pair<Rule>> = pair.into_inner().collect();
+    if pairs.len() == 1 {
+        return handle_primary_pattern(pairs[0].clone());
+    } else {
+        return Pat::mk_or(pairs.into_iter().map(handle_primary_pattern).collect());
+    }
 }
 
-pub fn handle_tuple(pair: Pair<Rule>) -> Expr {
-    let exprs = pair.into_inner().map(handle_expr).collect();
-    Expr::mk_tuple(exprs)
-}
-
-pub fn handle_field_explicit_init(pair: Pair<Rule>) -> FieldInit {
-    let mut pairs = pair.into_inner();
-    let ident = Some(pairs.next().unwrap().as_str().to_string());
-    let expr = handle_expr(pairs.next().unwrap());
-    FieldInit::new(ident, expr)
-}
-
-pub fn handle_block(pair: Pair<Rule>) -> Block {
-    let pairs = pair.into_inner();
-    let stmts = pairs.map(handle_stmt).collect();
-    Block::new(stmts)
-}
-
-pub fn handle_stmt(pair: Pair<Rule>) -> Stmt {
+fn handle_primary_pattern(pair: Pair<Rule>) -> Pat {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-        Rule::item => Stmt::Item(handle_item(pair)),
-        Rule::assign => handle_assign(pair),
-        Rule::expr => Stmt::Expr(handle_expr(pair)),
+        Rule::RangePattern => handle_range_pattern(pair),
+        Rule::PatternWithoutRange => handle_pattern_without_range(pair),
         _ => unreachable!(),
     }
 }
 
-pub fn handle_assign(pair: Pair<Rule>) -> Stmt {
-    let mut pairs = pair.into_inner();
-    let lhs = handle_expr(pairs.next().unwrap());
-    let rhs = handle_expr(pairs.next().unwrap());
-    Stmt::Assign(lhs, rhs)
+fn handle_range_pattern(pair: Pair<Rule>) -> Pat {
+    let span = pair.as_span();
+    let pair = pair.into_inner().next().unwrap();
+    let kind = match pair.as_rule() {
+        Rule::RangePatternInclusive => RangePatKind::Inclusive,
+        Rule::RangePatternExclusive => RangePatKind::Exclusive,
+        Rule::RangePatternFrom => RangePatKind::From,
+        Rule::RangePatternTo => RangePatKind::To,
+        Rule::RangePatternToInclusive => RangePatKind::ToInclusive,
+        _ => unreachable!(),
+    };
+    let mut pat = match pair.as_rule() {
+        Rule::RangePatternInclusive | Rule::RangePatternExclusive => {
+            let mut pairs = pair.into_inner();
+            let lhs = handle_range_pattern_bound(pairs.next().unwrap());
+            let rhs = handle_range_pattern_bound(pairs.next().unwrap());
+            Pat::mk_range(kind, lhs, rhs)
+        }
+        Rule::RangePatternFrom => {
+            let bound = handle_range_pattern_bound(pair.into_inner().next().unwrap());
+            Pat::mk_range(kind, bound, None)
+        }
+        Rule::RangePatternTo | Rule::RangePatternToInclusive => {
+            let bound = handle_range_pattern_bound(pair.into_inner().next().unwrap());
+            Pat::mk_range(kind, None, bound)
+        }
+        _ => unreachable!(),
+    };
+    pat.set_span(span);
+    return pat;
 }
 
-pub fn handle_item(pair: Pair<Rule>) -> Item {
+fn handle_range_pattern_bound(pair: Pair<Rule>) -> Option<RangePatBound> {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-        Rule::use_decl => handle_use_decl(pair),
-        Rule::type_decl => handle_type_decl(pair),
-        Rule::let_decl => handle_let_decl(pair),
-        Rule::module => handle_module(pair),
-        Rule::import => handle_import(pair),
-        Rule::trait_decl => handle_trait_decl(pair),
-        Rule::instance => handle_instance(pair),
+        Rule::Literal => Some(RangePatBound::Lit(handle_literal(pair))),
+        Rule::QualifiedPath => Some(RangePatBound::QualifiedPath(handle_qualified_path(pair))),
         _ => unreachable!(),
     }
 }
 
-pub fn handle_trait_decl(pair: Pair<Rule>) -> Item {
-    let mut pairs = pair.into_inner();
-    let ident = pairs.next().unwrap().as_str().to_string();
-    let params = handle_fn_ty_params(pairs.next().unwrap());
-    let items = pairs.map(handle_item).collect();
-    Item::mk_trait(ident, params, items)
+fn handle_pattern_without_range(pair: Pair<Rule>) -> Pat {
+    let span = pair.as_span();
+    let pair = pair.into_inner().next().unwrap();
+
+    let mut pat = match pair.as_rule() {
+        Rule::LiteralPattern => handle_literal_pattern(pair),
+        Rule::IdentPattern => handle_ident_pattern(pair),
+        Rule::WildcardPattern => Pat::mk_wildcard(),
+        Rule::RestPattern => Pat::mk_rest(),
+        Rule::RecordPattern => handle_record_pattern(pair),
+        Rule::TuplePattern => handle_tuple_pattern(pair),
+        Rule::QualifiedPattern => {
+            Pat::mk_qualified(handle_qualified_path(pair.into_inner().next().unwrap()))
+        }
+        Rule::Pattern => handle_pattern(pair),
+        Rule::ConstructorPattern => handle_constructor_pattern(pair),
+        _ => unreachable!(),
+    };
+
+    pat.set_span(span);
+    return pat;
 }
 
-pub fn handle_instance_item(pair: Pair<Rule>) -> (String, Expr) {
+fn handle_constructor_pattern(pair: Pair<Rule>) -> Pat {
     let mut pairs = pair.into_inner();
-    let ident = pairs.next().unwrap().as_str().to_string();
-    let expr = handle_expr(pairs.next().unwrap());
-    (ident, expr)
-}
+    let path = handle_qualified_path(pairs.next().unwrap());
 
-pub fn handle_instance(pair: Pair<Rule>) -> Item {
-    let mut pairs = pair.into_inner();
-    let ident = pairs.next().unwrap().as_str().to_string();
-    let params = handle_fn_params(pairs.next().unwrap());
-    let items = pairs.map(handle_instance_item).collect();
-    Item::mk_instance(ident, params, items)
-}
-
-pub fn handle_let_decl(pair: Pair<Rule>) -> Item {
-    let pairs = pair.into_inner();
-    let mut spec = Spec::None;
-    let mut ident = String::new();
-    let mut ty = None;
-    let mut expr = None;
-
+    let mut args = Vec::new();
     for pair in pairs {
         match pair.as_rule() {
-            Rule::spec => spec = handle_spec(pair),
-            Rule::ident => ident = pair.as_str().to_string(),
-            Rule::let_ty => {
-                ty = Some(handle_expr(pair.into_inner().next().unwrap()));
+            Rule::ConstructorPatternArgsImplicit => {
+                for pair in pair.into_inner() {
+                    args.push(handle_constructor_pattern_arg(pair, true));
+                }
             }
-            Rule::let_init => {
-                expr = Some(handle_expr(pair.into_inner().next().unwrap()));
+            Rule::ConstructorPatternArgsExplicit => {
+                for pair in pair.into_inner() {
+                    args.push(handle_constructor_pattern_arg(pair, false));
+                }
             }
             _ => unreachable!(),
         }
     }
-    Item::mk_let(spec, ident, ty, expr)
+    return Pat::mk_constructor(path, args);
 }
 
-pub fn handle_use_decl(pair: Pair<Rule>) -> Item {
-    let tree = handle_use_tree(pair.into_inner().next().unwrap());
-    Item::mk_use(tree)
+fn handle_constructor_pattern_arg(pair: Pair<Rule>, implicit: bool) -> ConstructorPatArg {
+    let mut name = None;
+    let mut pat = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::Ident => name = Some(pair.as_str().to_string()),
+            Rule::Pattern => pat = Some(handle_pattern(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    return ConstructorPatArg::new(name, pat.unwrap(), implicit);
 }
 
-pub fn handle_use_tree(pair: Pair<Rule>) -> UseTree {
+fn handle_tuple_pattern(pair: Pair<Rule>) -> Pat {
+    Pat::mk_tuple(pair.into_inner().map(handle_pattern).collect())
+}
+
+fn handle_record_pattern(pair: Pair<Rule>) -> Pat {
+    let mut pairs = pair.into_inner();
+    let mut elems = Vec::new();
+
+    let path = handle_qualified_path(pairs.next().unwrap());
+    for pair in pairs {
+        let pair = pair.into_inner().next().unwrap();
+        match pair.as_rule() {
+            Rule::RestPattern => elems.push(RecordPatElem::Rest),
+            Rule::RecordPatternField => {
+                let mut pairs = pair.into_inner();
+                let name = pairs.next().unwrap().as_str().to_string();
+                let pat = handle_pattern(pairs.next().unwrap());
+                elems.push(RecordPatElem::Field(name, pat));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    return Pat::mk_record(path, elems);
+}
+
+fn handle_literal_pattern(pair: Pair<Rule>) -> Pat {
+    Pat::mk_lit(handle_literal(pair.into_inner().next().unwrap()))
+}
+
+fn handle_ident_pattern(pair: Pair<Rule>) -> Pat {
+    let mut name = String::new();
+    let mut spec = IdentPatSpec::None;
+    let pairs = pair.into_inner();
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::IdentPatternSpec => spec = hanlde_ident_pattern_spec(pair),
+            Rule::Ident => name = pair.as_str().to_string(),
+            _ => unreachable!(),
+        }
+    }
+
+    return Pat::mk_ident(spec, name);
+}
+
+fn hanlde_ident_pattern_spec(pair: Pair<Rule>) -> IdentPatSpec {
+    let spec_str = pair.as_str().to_string();
+    let spec_str = spec_str.split(" ").collect::<Vec<_>>();
+    let mut spec = IdentPatSpec::None;
+    for s in spec_str {
+        match s {
+            "comptime" => spec = IdentPatSpec::Comptime,
+            "ref" => spec = IdentPatSpec::Ref,
+            "mut" => {
+                if let IdentPatSpec::Ref = spec {
+                    spec = IdentPatSpec::RefMut;
+                } else {
+                    spec = IdentPatSpec::Mut
+                }
+            }
+            _ => {}
+        }
+    }
+    return spec;
+}
+
+fn handle_stmt(pair: Pair<Rule>) -> Stmt {
+    let span = pair.as_span();
+    let pair = pair.into_inner().next().unwrap();
+    let mut stmt = match pair.as_rule() {
+        Rule::Let => handle_let(pair),
+        Rule::Item => Stmt::mk_item(handle_item(pair)),
+        Rule::Expr => Stmt::mk_expr(handle_expr(pair)),
+        _ => unreachable!(),
+    };
+    stmt.set_span(span);
+    return stmt;
+}
+
+fn handle_let(pair: Pair<Rule>) -> Stmt {
+    let mut pairs = pair.into_inner();
+    let pat = handle_pattern_without_range(pairs.next().unwrap());
+    let mut init = None;
+    let mut ty = None;
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::QualifiedPath => {
+                ty = Some(handle_qualified_path(pair));
+            }
+            Rule::Expr => {
+                init = Some(handle_expr(pair));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    return Stmt::mk_let(Let::new(pat, ty, init));
+}
+
+fn handle_def(pair: Pair<Rule>) -> Item {
+    let mut builtin = false;
+    let mut name = None;
+    let mut func = None;
+    let mut expr = None;
+
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::DefSpec => builtin = true,
+            Rule::Ident => name = Some(pair.as_str().to_string()),
+            Rule::FnLhs => func = Some(handle_fn_lhs(pair)),
+            Rule::Expr => expr = Some(handle_expr(pair)),
+            _ => unreachable!(),
+        }
+    }
+
+    let mut func = func.unwrap();
+    func.expr = expr.map(Box::new);
+
+    return Item::mk_def(Def::new(builtin, name.unwrap(), func));
+}
+
+fn handle_item(pair: Pair<Rule>) -> Item {
+    let span = pair.as_span();
+    let pair = pair.into_inner().next().unwrap();
+    let mut item = match pair.as_rule() {
+        Rule::Use => handle_use(pair),
+        Rule::Import => handle_import(pair),
+        Rule::Def => handle_def(pair),
+        Rule::Const => handle_const(pair),
+        Rule::Type => handle_type(pair),
+        Rule::Impl => hanlde_impl(pair),
+        Rule::Module => handle_module(pair),
+        _ => unreachable!(),
+    };
+    item.set_span(span);
+    return item;
+}
+
+fn handle_use(pair: Pair<Rule>) -> Item {
+    Item::mk_use(handle_use_tree(pair.into_inner().next().unwrap()))
+}
+
+fn handle_use_tree(pair: Pair<Rule>) -> UseTree {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-        Rule::chained => UseTree::new(handle_chained(pair), None, Vec::new(), false),
-        Rule::use_as => handle_use_as(pair),
-        Rule::use_all => handle_use_all(pair),
-        Rule::use_multi => handle_use_multi(pair),
+        Rule::Ident => UseTree::new(pair.as_str().to_string(), None, false, Vec::new()),
+        Rule::UseTreeAll => UseTree::new(
+            pair.into_inner().next().unwrap().as_str().to_string(),
+            None,
+            true,
+            Vec::new(),
+        ),
+        Rule::UseTreeAlias => {
+            let mut pairs = pair.into_inner();
+            let name = pairs.next().unwrap().as_str().to_string();
+            let alias = pairs.next().unwrap().as_str().to_string();
+            UseTree::new(name, Some(alias), false, Vec::new())
+        }
+        Rule::UseTreeMulti => {
+            let mut pairs = pair.into_inner();
+            let name = pairs.next().unwrap().as_str().to_string();
+            let children = pairs.map(handle_use_tree).collect();
+            UseTree::new(name, None, false, children)
+        }
+        Rule::UseTreeSimple => {
+            let mut pairs = pair.into_inner();
+            let name = pairs.next().unwrap().as_str().to_string();
+            let children = pairs.map(handle_use_tree).collect();
+            UseTree::new(name, None, false, children)
+        }
         _ => unreachable!(),
     }
 }
 
-pub fn handle_use_as(pair: Pair<Rule>) -> UseTree {
-    let mut pairs = pair.into_inner();
-    let chained = handle_chained(pairs.next().unwrap());
-    let alias = pairs.next().unwrap().as_str().to_string();
-    UseTree::new(chained, Some(alias), Vec::new(), false)
+fn handle_import(pair: Pair<Rule>) -> Item {
+    Item::mk_import(pair.into_inner().next().unwrap().as_str().to_string())
 }
 
-pub fn handle_use_all(pair: Pair<Rule>) -> UseTree {
-    let chained = handle_chained(pair.into_inner().next().unwrap());
-    UseTree::new(chained, None, Vec::new(), true)
+fn handle_const(pair: Pair<Rule>) -> Item {
+    let mut pairs = pair.into_inner();
+    let name = pairs.next().unwrap().as_str().to_string();
+    let ty = handle_qualified_path(pairs.next().unwrap());
+    let init = handle_expr(pairs.next().unwrap());
+    return Item::mk_const(Const::new(name, ty, init));
 }
 
-pub fn handle_use_multi(pair: Pair<Rule>) -> UseTree {
-    let mut pairs = pair.into_inner();
-    let chained = handle_chained(pairs.next().unwrap());
-    let children = pairs.map(handle_use_tree).collect();
-    UseTree::new(chained, None, children, false)
-}
-
-pub fn handle_type_decl(pair: Pair<Rule>) -> Item {
-    let mut pairs = pair.into_inner();
-    let mut spec = Spec::None;
-    let mut pair = pairs.next().unwrap();
-
-    match pair.as_rule() {
-        Rule::spec => {
-            spec = handle_spec(pair);
-            pair = pairs.next().unwrap();
-        }
-        _ => {}
-    }
-
-    let ident = pair.as_str().to_string();
-
-    let mut params = Vec::new();
+fn handle_type(pair: Pair<Rule>) -> Item {
+    let pairs = pair.into_inner();
+    let mut builtin = false;
+    let mut name = String::new();
     let mut ty = None;
     let mut body = None;
 
     for pair in pairs {
         match pair.as_rule() {
-            Rule::fn_ty_params => {
-                params = handle_fn_ty_params(pair);
-            }
-            Rule::app_expr => {
-                ty = Some(handle_app_expr(pair));
-            }
-            Rule::type_decl_body => {
-                body = Some(handle_type_decl_body(pair));
-            }
+            Rule::TypeSpec => builtin = true,
+            Rule::Ident => name = pair.as_str().to_string(),
+            Rule::FnLhs => ty = Some(handle_fn_lhs(pair)),
+            Rule::TypeBody => body = Some(handle_type_body(pair)),
             _ => unreachable!(),
         }
     }
 
-    Item::mk_type(spec, ident, params, ty, body)
+    return Item::mk_type(Type::new(builtin, name, ty, body));
 }
 
-pub fn handle_type_decl_body(pair: Pair<Rule>) -> TypeBody {
+fn handle_type_body(pair: Pair<Rule>) -> TypeBody {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-        Rule::record => TypeBody::Record(handle_record(pair)),
-        Rule::constructors => TypeBody::Constructors(handle_constructors(pair)),
+        Rule::Record => handle_record(pair),
+        Rule::Expr => TypeBody::Expr(handle_expr(pair)),
+        Rule::Interface => handle_interface(pair),
+        Rule::Constructors => handle_constructors(pair),
         _ => unreachable!(),
     }
 }
 
-pub fn handle_record(pair: Pair<Rule>) -> Vec<Field> {
-    pair.into_inner().map(handle_field).collect()
+fn handle_constructors(pair: Pair<Rule>) -> TypeBody {
+    let pairs = pair.into_inner();
+    let constructors = pairs
+        .map(|pair| {
+            let mut pairs = pair.into_inner();
+            let name = pairs.next().unwrap().as_str().to_string();
+            let maybe_pair = pairs.next();
+            let func = if let Some(pair) = maybe_pair {
+                Some(handle_fn_lhs(pair))
+            } else {
+                None
+            };
+            (name, func)
+        })
+        .collect();
+    return TypeBody::Constructors(constructors);
 }
 
-pub fn handle_constructors(pair: Pair<Rule>) -> Vec<Constructor> {
-    pair.into_inner().map(handle_constructor).collect()
+fn handle_interface(pair: Pair<Rule>) -> TypeBody {
+    let pairs = pair.into_inner();
+    let items = pairs.map(handle_def).collect();
+    return TypeBody::Interface(items);
 }
 
-pub fn handle_constructor(pair: Pair<Rule>) -> Constructor {
-    let mut pairs = pair.into_inner();
-    let ident = pairs.next().unwrap().as_str().to_string();
+fn handle_record(pair: Pair<Rule>) -> TypeBody {
+    let pairs = pair.into_inner();
     let mut fields = Vec::new();
-    let mut ty = None;
 
     for pair in pairs {
-        match pair.as_rule() {
-            Rule::fn_ty_params => fields = handle_fn_ty_params(pair),
-            Rule::app_expr => {
-                ty = Some(handle_app_expr(pair));
-            }
-            _ => unreachable!(),
-        }
+        let mut pairs = pair.into_inner();
+        let name = pairs.next().unwrap().as_str().to_string();
+        let expr = handle_expr(pairs.next().unwrap());
+        fields.push((name, expr));
     }
-    Constructor::new(ident, fields, ty)
+    return TypeBody::Record(fields);
 }
 
-pub fn handle_module(pair: Pair<Rule>) -> Item {
+fn hanlde_impl(pair: Pair<Rule>) -> Item {
+    let mut pairs = pair.into_inner();
+    let expr = handle_atomic_expr(pairs.next().unwrap());
+    let items = pairs.map(handle_def).collect();
+    return Item::mk_impl(expr, items);
+}
+
+fn handle_module(pair: Pair<Rule>) -> Item {
     let mut pairs = pair.into_inner();
     let name = pairs.next().unwrap().as_str().to_string();
     let items = pairs.map(handle_item).collect();
-    Item::mk_module(name, items)
-}
-
-pub fn handle_import(pair: Pair<Rule>) -> Item {
-    let ident = pair.into_inner().next().unwrap().as_str().to_string();
-    Item::mk_import(ident)
+    return Item::mk_module(Module::new(name, items));
 }

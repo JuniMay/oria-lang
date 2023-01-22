@@ -10,12 +10,8 @@ path = "src/lib.rs"
 [[bin]]
 name = "oriac"
 path = "src/bin/main.rs"
-required-features = ["parser"]
 
 [dependencies]
-pest = { version = "2.5.2", features = ["pretty-print"], optional = true }
-pest_derive = { version = "2.5.2", optional = true }
+pest = { version = "2.5.2", features = ["pretty-print"]}
+pest_derive = { version = "2.5.2"}
 clap = "4.0.29"
-
-[features]
-parser = ["pest", "pest_derive"]
