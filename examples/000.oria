@@ -1,2 +1,14 @@
 
-def main() : @i32 => 0
+def main() : Int32 => 0
+
+def get_float() : Float32 => 1.32
+
+def get_int64() : Int64 => 114514i64
+
+def get1() : Int64 => 114514i64
+
+def get2() : Int64 => 114514i64
+
+def get3() : Int32 => 1919810
+
+def get4() : Int64 => 114514i64

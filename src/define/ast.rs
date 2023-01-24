@@ -1,25 +1,8 @@
+use super::{Radix, Span};
 use pest;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl Span {
-    pub fn default() -> Self {
-        Self { start: 0, end: 0 }
-    }
-    pub fn from_pest(pest_span: pest::Span) -> Self {
-        Self {
-            start: pest_span.start(),
-            end: pest_span.end(),
-        }
-    }
-}
-
 /// Binary operators
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum BinOp {
     /// Shift left
     Shl,
@@ -62,7 +45,7 @@ pub enum BinOp {
 }
 
 /// Unary operators
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum UnaryOp {
     /// Positive
     Pos,
@@ -78,7 +61,7 @@ pub enum UnaryOp {
     Deref,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum RangeKind {
     /// a..b
     Exclusive,
@@ -94,7 +77,7 @@ pub enum RangeKind {
     Full,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct FnArg {
     pub name: Option<String>,
     pub expr: Expr,
@@ -111,34 +94,26 @@ impl FnArg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct FnParam {
     pub name: Option<String>,
-    pub ty: Option<QualifiedPath>,
+    pub ty: Option<Expr>,
     pub implicit: bool,
 }
 
 impl FnParam {
-    pub fn new(name: Option<String>, ty: Option<QualifiedPath>, implicit: bool) -> Self {
+    pub fn new(name: Option<String>, ty: Option<Expr>, implicit: bool) -> Self {
         Self { name, ty, implicit }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum LitKind {
     Integer,
     Floating,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Radix {
-    Bin,
-    Oct,
-    Dec,
-    Hex,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum LitSuffix {
     I8,
     I16,
@@ -154,7 +129,7 @@ pub enum LitSuffix {
     USize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Lit {
     pub kind: LitKind,
     pub radix: Radix,
@@ -162,22 +137,29 @@ pub struct Lit {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Fn {
+    pub name: Option<String>,
     /// Parameters
     pub params: Vec<FnParam>,
     /// Return type.
-    pub ret_ty: Option<QualifiedPath>,
+    pub ret_ty: Option<Box<Expr>>,
     /// Function body.
     /// If `None`, this is the left hand side (just type) of a function.
     pub expr: Option<Box<Expr>>,
 }
 
 impl Fn {
-    pub fn new(params: Vec<FnParam>, ret_ty: Option<QualifiedPath>, expr: Option<Expr>) -> Self {
+    pub fn new(
+        name: Option<String>,
+        params: Vec<FnParam>,
+        ret_ty: Option<Expr>,
+        expr: Option<Expr>,
+    ) -> Self {
         Self {
+            name,
             params,
-            ret_ty,
+            ret_ty: ret_ty.map(Box::new),
             expr: expr.map(Box::new),
         }
     }
@@ -186,7 +168,7 @@ impl Fn {
 pub type QualifiedPath = Vec<Expr>;
 pub type Label = String;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub label: Option<Label>,
     pub stmts: Vec<Stmt>,
@@ -203,7 +185,7 @@ impl Block {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct IfLet {
     pub pat: Pat,
     pub expr: Box<Expr>,
@@ -222,7 +204,7 @@ impl IfLet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pat: Pat,
     pub expr: Expr,
@@ -234,7 +216,7 @@ impl MatchArm {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     /// `Type`
     Universe,
@@ -257,7 +239,7 @@ pub enum ExprKind {
     /// Tuple.
     Tuple(Vec<Expr>),
     /// Function type.
-    FnTy(Vec<FnParam>, QualifiedPath),
+    FnTy(Vec<FnParam>, Box<Expr>),
     /// Function
     Fn(Fn),
     /// Return
@@ -286,7 +268,7 @@ pub enum ExprKind {
     Match(Box<Expr>, Vec<MatchArm>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -359,9 +341,9 @@ impl Expr {
         }
     }
 
-    pub fn mk_fn_ty(params: Vec<FnParam>, ret_ty: QualifiedPath) -> Self {
+    pub fn mk_fn_ty(params: Vec<FnParam>, ret_ty: Expr) -> Self {
         Self {
-            kind: ExprKind::FnTy(params, ret_ty),
+            kind: ExprKind::FnTy(params, Box::new(ret_ty)),
             span: Span::default(),
         }
     }
@@ -458,7 +440,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum IdentPatSpec {
     Comptime,
     Ref,
@@ -467,19 +449,19 @@ pub enum IdentPatSpec {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum RecordPatElem {
     Field(String, Pat),
     Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum RangePatBound {
     Lit(Lit),
     QualifiedPath(QualifiedPath),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct ConstructorPatArg {
     pub name: Option<String>,
     pub pat: Pat,
@@ -496,7 +478,7 @@ impl ConstructorPatArg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum RangePatKind {
     /// a..b
     Exclusive,
@@ -510,7 +492,7 @@ pub enum RangePatKind {
     ToInclusive,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum PatKind {
     Lit(Lit),
     Wildcard,
@@ -524,7 +506,7 @@ pub enum PatKind {
     Or(Vec<Pat>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Pat {
     pub kind: PatKind,
     pub span: Span,
@@ -610,27 +592,27 @@ impl Pat {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Let {
     pub pat: Pat,
-    pub ty: Option<QualifiedPath>,
+    pub ty: Option<Expr>,
     pub init: Option<Expr>,
 }
 
 impl Let {
-    pub fn new(pat: Pat, ty: Option<QualifiedPath>, init: Option<Expr>) -> Self {
+    pub fn new(pat: Pat, ty: Option<Expr>, init: Option<Expr>) -> Self {
         Self { pat, ty, init }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum StmtKind {
     Let(Let),
     Item(Item),
     Expr(Expr),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
@@ -663,7 +645,7 @@ impl Stmt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct UseTree {
     pub name: String,
     pub alias: Option<String>,
@@ -682,37 +664,32 @@ impl UseTree {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Def {
     pub builtin: bool,
-    pub name: String,
     pub body: Fn,
 }
 
 impl Def {
-    pub fn new(builtin: bool, name: String, body: Fn) -> Self {
-        Self {
-            builtin,
-            name,
-            body,
-        }
+    pub fn new(builtin: bool, body: Fn) -> Self {
+        Self { builtin, body }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Const {
     pub name: String,
-    pub ty: QualifiedPath,
+    pub ty: Expr,
     pub init: Expr,
 }
 
 impl Const {
-    pub fn new(name: String, ty: QualifiedPath, init: Expr) -> Self {
+    pub fn new(name: String, ty: Expr, init: Expr) -> Self {
         Self { name, ty, init }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Module {
     pub name: String,
     pub items: Vec<Item>,
@@ -724,7 +701,7 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum TypeBody {
     Record(Vec<(String, Expr)>),
     Interface(Vec<Item>),
@@ -732,7 +709,7 @@ pub enum TypeBody {
     Constructors(Vec<(String, Option<Fn>)>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Type {
     pub builtin: bool,
     pub name: String,
@@ -751,7 +728,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum ItemKind {
     Use(UseTree),
     Import(String),
@@ -762,7 +739,7 @@ pub enum ItemKind {
     Module(Module),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Item {
     pub kind: ItemKind,
     pub span: Span,
@@ -823,7 +800,7 @@ impl Item {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct CompUnit {
     pub items: Vec<Item>,
     pub span: Span,

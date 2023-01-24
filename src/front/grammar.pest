@@ -31,7 +31,7 @@ UseTreeAlias = { Ident ~ "as" ~ Ident }
 UseTreeMulti = { Ident ~ "::" ~ "{" ~ UseTree ~ ("," ~ UseTree)* ~ "}" }
 UseTreeSimple = { Ident ~ "::" ~ UseTree }
 
-Const = { "const" ~ Ident ~ ":" ~ QualifiedPath ~ "=" ~ Expr }
+Const = { "const" ~ Ident ~ ":" ~ QualifiedExpr ~ "=" ~ Expr }
 
 Type = { "type" ~ TypeSpec? ~ Ident ~ FnLhs? ~ ("=" ~ TypeBody)? }
 TypeBody = { Record | Interface | Expr | Constructors }
@@ -56,15 +56,15 @@ Expr = {  Return | Break | Continue | Assign | OpExpr | FnExpr }
 OpExpr = { PrefixOp* ~ QualifiedExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ QualifiedExpr ~ PostfixOp*)* }
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
-FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ QualifiedPath)? }
+FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ QualifiedExpr)? }
 FnParamsImplicit = { "<" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ">" }
 FnParamsExplicit = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
-FnParam = { Ident ~ (":" ~ QualifiedPath)? }
+FnParam = { Ident ~ (":" ~ QualifiedExpr)? }
 
-FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ QualifiedPath }
+FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ QualifiedExpr }
 FnTyParamsImplicit = { "<" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ">" }
 FnTyParamsExplicit = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
-FnTyParam = { (Ident ~ ":")? ~ QualifiedPath }
+FnTyParam = { (Ident ~ ":")? ~ QualifiedExpr }
 
 QualifiedExpr = { QualifiedPath }
 
@@ -121,7 +121,7 @@ Label = ${ "'" ~ Ident }
 
 Stmt = { Let | Item | Expr }
 
-Let = { "let" ~ PatternWithoutRange ~ (":" ~ QualifiedPath)? ~ ("=" ~ Expr)? }
+Let = { "let" ~ PatternWithoutRange ~ (":" ~ QualifiedExpr)? ~ ("=" ~ Expr)? }
 
 Match = { "match" ~ Expr ~ "{" ~ MatchArm ~ ("," ~ MatchArm)* ~ "}" }
 MatchArm = { Pattern ~ "=>" ~ Expr }

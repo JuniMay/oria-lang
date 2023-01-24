@@ -1,4 +1,5 @@
 use crate::define::ast::*;
+use crate::define::Radix;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -122,13 +123,13 @@ fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
             Rule::FnParamsExplicit => {
                 params.extend(handle_fn_params(pair, false));
             }
-            Rule::QualifiedPath => {
-                ret_ty = Some(handle_qualified_path(pair));
+            Rule::QualifiedExpr => {
+                ret_ty = Some(handle_qualified_expr(pair));
             }
             _ => unreachable!(),
         }
     }
-    let lhs = Fn::new(params, ret_ty, None);
+    let lhs = Fn::new(None, params, ret_ty, None);
     return lhs;
 }
 
@@ -146,7 +147,7 @@ fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::Ident => name = Some(pair.as_str().to_string()),
-                Rule::QualifiedPath => ty = Some(handle_qualified_path(pair)),
+                Rule::QualifiedExpr => ty = Some(handle_qualified_expr(pair)),
                 _ => unreachable!(),
             }
         }
@@ -489,8 +490,8 @@ fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
             Rule::FnTyParamsExplicit => {
                 params.extend(handle_fn_ty_params(pair, false));
             }
-            Rule::QualifiedPath => {
-                ret_ty = Some(handle_qualified_path(pair));
+            Rule::QualifiedExpr => {
+                ret_ty = Some(handle_qualified_expr(pair));
             }
             _ => unreachable!(),
         }
@@ -514,7 +515,7 @@ fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::Ident => name = Some(pair.as_str().to_string()),
-                Rule::QualifiedPath => ty = Some(handle_qualified_path(pair)),
+                Rule::QualifiedExpr => ty = Some(handle_qualified_expr(pair)),
                 _ => unreachable!(),
             }
         }
@@ -763,8 +764,8 @@ fn handle_let(pair: Pair<Rule>) -> Stmt {
     let mut ty = None;
     for pair in pairs {
         match pair.as_rule() {
-            Rule::QualifiedPath => {
-                ty = Some(handle_qualified_path(pair));
+            Rule::QualifiedExpr => {
+                ty = Some(handle_qualified_expr(pair));
             }
             Rule::Expr => {
                 init = Some(handle_expr(pair));
@@ -793,9 +794,11 @@ fn handle_def(pair: Pair<Rule>) -> Item {
     }
 
     let mut func = func.unwrap();
+    func.name = Some(name.unwrap());
+
     func.expr = expr.map(Box::new);
 
-    return Item::mk_def(Def::new(builtin, name.unwrap(), func));
+    return Item::mk_def(Def::new(builtin, func));
 }
 
 fn handle_item(pair: Pair<Rule>) -> Item {
@@ -858,7 +861,7 @@ fn handle_import(pair: Pair<Rule>) -> Item {
 fn handle_const(pair: Pair<Rule>) -> Item {
     let mut pairs = pair.into_inner();
     let name = pairs.next().unwrap().as_str().to_string();
-    let ty = handle_qualified_path(pairs.next().unwrap());
+    let ty = handle_qualified_expr(pairs.next().unwrap());
     let init = handle_expr(pairs.next().unwrap());
     return Item::mk_const(Const::new(name, ty, init));
 }
