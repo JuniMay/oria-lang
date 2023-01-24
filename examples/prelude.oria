@@ -103,21 +103,21 @@ type Void
 type PhantomData<Type>
 
 type Equal<A : Type, B : Type>(x : A, y : B) =
-    | Refl<A : Type, x : A> : Equal(x, x) 
+  | Refl<A : Type, x : A> : Equal(x, x) 
 
 # the(Equal(2, 3), Refl) shall fail to typecheck
 
 type Ordering =
-    | Lt | Eq | Gt 
+  | Lt | Eq | Gt 
 
 type Option(T : Type) = 
-    | None 
-    | Some(T)
+  | None 
+  | Some(T)
 
 type Either(L : Type, R : Type) =
-    | Left(L) 
-    | Right(R)
+  | Left(L) 
+  | Right(R)
 
 type Result(T : Type, E : Type) =
-    | Ok(T) 
-    | Err(E)
+  | Ok(T) 
+  | Err(E)

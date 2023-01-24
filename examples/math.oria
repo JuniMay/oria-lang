@@ -5,25 +5,25 @@ const LN2  : Float64 = 0.69314718055994530942
 const LN10 : Float64 = 2.30258509299404568402
 
 def abs<T: Type>(x: T) : T => {
-    if x < 0 {
-        return -x
-    }
-    return x
+  if x < 0 {
+    return -x
+  }
+  return x
 }
 
 def pow(a : Float64, n : Int64) => {
-    if n < 0 {
-        return 1.0 / pow(a, -n)
-    }
+  if n < 0 {
+    return 1.0 / pow(a, -n)
+  }
 
-    let mut result : Float32 = 1.0
+  let mut result : Float32 = 1.0
 
-    while n != 0 {
-        if n % 2 == 1 {
-            result = result * a
-        }
-        a = a * a
-        n = n / 2
+  while n != 0 {
+    if n % 2 == 1 {
+      result = result * a
     }
-    return result
+    a = a * a
+    n = n / 2
+  }
+  return result
 }
