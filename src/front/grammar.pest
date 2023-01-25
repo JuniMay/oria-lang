@@ -101,13 +101,13 @@ ExprWithBlock = { Loop
 
 Assign = { OpExpr ~ "=" ~ Expr }
 
-Loop = { (Label ~ ":")? ~ "loop" ~ Block }
+Loop = { Label? ~ "loop" ~ Block }
 
 Continue = { "continue" ~ Label? }
 
-While = { (Label ~ ":")? ~ "while" ~ Expr ~ Block }
+While = { Label? ~ "while" ~ Expr ~ Block }
 
-For = { (Label ~ ":")? ~ "for" ~ Pattern ~ "in" ~ Expr ~ Block }
+For = { Label? ~ "for" ~ Pattern ~ "in" ~ Expr ~ Block }
 
 If = { "if" ~ Expr ~ Block ~ ("else" ~ ExprWithBlock)?}
 
@@ -115,7 +115,7 @@ IfLet = { "if" ~ "let" ~ Pattern ~ "=" ~ Expr ~ Block ~ ("else" ~ ExprWithBlock)
 
 RangeFull = { ".." }
 
-Block = { BlockSpec? ~ (Label ~ ":")? ~ "{" ~ Stmt* ~ "}" }
+Block = { BlockSpec? ~ Label? ~ "{" ~ Stmt* ~ "}" }
 BlockSpec = { "comptime" }
 Label = ${ "'" ~ Ident }
 

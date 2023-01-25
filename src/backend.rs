@@ -1,24 +1,26 @@
 use crate::define::mir::{
-  Block as MirBlock, Module as MirModule, StmtKind as MirStmtKind,
-  SymbolKind as MirSymbolKind, Value as MirValue, ValueKind as MirValueKind,
+  check::TypeCheck, codegen::MirCodegenContext, Block as MirBlock,
+  Module as MirModule, StmtKind as MirStmtKind, SymbolKind as MirSymbolKind,
+  Value as MirValue, ValueKind as MirValueKind,
 };
 use crate::define::Radix;
 use crate::Ptr;
 use inkwell::module::Linkage;
 use inkwell::types::{AnyType, AnyTypeEnum, StringRadix};
-use inkwell::values::BasicValueEnum;
 use inkwell::{
-  builder::Builder, context::Context, module::Module, types::BasicTypeEnum,
+  builder::Builder as LlvmBuilder, context::Context as LlvmContext,
+  module::Module as LlvmModule, types::BasicTypeEnum as LlvmBasicTypeEnum,
+  values::BasicValueEnum as LlvmBasicValueEnum,
 };
 
 pub struct LlvmIrCodegenContext<'ctx> {
-  pub context: &'ctx Context,
-  pub builder: Builder<'ctx>,
-  pub module: Module<'ctx>,
+  pub context: &'ctx LlvmContext,
+  pub builder: LlvmBuilder<'ctx>,
+  pub module: LlvmModule<'ctx>,
 }
 
 impl<'ctx> LlvmIrCodegenContext<'ctx> {
-  pub fn new(context: &'ctx Context) -> Self {
+  pub fn new(context: &'ctx LlvmContext) -> Self {
     Self {
       context,
       builder: context.create_builder(),
@@ -30,18 +32,22 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
     self.module.print_to_string().to_string()
   }
 
-  pub fn codegen(&mut self, mir_module: Ptr<MirModule>) -> Result<(), String> {
-    self
-      .module
-      .set_name(mir_module.as_ref().borrow().name.as_str());
+  pub fn codegen(
+    &mut self,
+    mir_module: Ptr<MirModule>,
+    mir_codegen_ctx: &mut MirCodegenContext,
+  ) -> Result<(), String> {
+    self.module.set_name(mir_module.borrow().name.as_str());
 
-    let symbol_table = mir_module.as_ref().borrow().symbol_table.clone();
+    let symbol_table = mir_module.borrow().symbol_table.clone();
 
-    for (name, symbol) in &symbol_table.as_ref().borrow().table {
-      match &symbol.as_ref().borrow().kind {
-        MirSymbolKind::Def(builtin, func) => {
+    for (name, symbol) in &symbol_table.borrow().table {
+      match &mut symbol.borrow_mut().kind {
+        MirSymbolKind::Def(builtin, ref mut func) => {
           if *builtin {
-            let llvm_ty = self.codegen_type(func.fetch_type())?;
+            let llvm_ty = self.codegen_type(
+              func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
+            )?;
             let llvm_fn_ty = match llvm_ty {
               AnyTypeEnum::FunctionType(ty) => ty,
               _ => return Err("Invalid function type".to_string()),
@@ -52,7 +58,9 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
               Some(Linkage::External),
             );
           } else {
-            let llvm_ty = self.codegen_type(func.fetch_type())?;
+            let llvm_ty = self.codegen_type(
+              func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
+            )?;
             let llvm_fn_ty = match llvm_ty {
               AnyTypeEnum::FunctionType(ty) => ty,
               _ => return Err("Invalid function type".to_string()),
@@ -61,20 +69,14 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
             let llvm_func =
               self.module.add_function(name.as_str(), llvm_fn_ty, None);
 
-            if let MirValueKind::Block(ref block) =
-              func.body.as_ref().unwrap().as_ref().borrow().kind
-            {
-              let label = block.label.clone();
-              let llvm_curr_block = self.context.append_basic_block(
-                llvm_func,
-                (label.clone() + "_BEGIN").as_str(),
-              );
+            let label = func.body.as_ref().unwrap().label.clone();
+            let llvm_curr_block = self.context.append_basic_block(
+              llvm_func,
+              ("__BEGIN_".to_string() + &label.clone()).as_str(),
+            );
 
-              self.builder.position_at_end(llvm_curr_block);
-              self.codegen_block(block)?;
-            } else {
-              return Err("Invalid internal value for function".to_string());
-            }
+            self.builder.position_at_end(llvm_curr_block);
+            self.codegen_block(func.body.as_ref().unwrap())?;
           }
         }
         _ => return Err("Unimplemented".to_string()),
@@ -87,8 +89,8 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
   fn codegen_basic_type(
     &mut self,
     mir_value: Ptr<MirValue>,
-  ) -> Result<BasicTypeEnum<'ctx>, String> {
-    match &mir_value.as_ref().borrow().kind {
+  ) -> Result<LlvmBasicTypeEnum<'ctx>, String> {
+    match &mir_value.borrow().kind {
       MirValueKind::Ident(name) => match name.as_str() {
         "Int8" => Ok(self.context.i8_type().into()),
         "Int16" => Ok(self.context.i16_type().into()),
@@ -110,7 +112,7 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
     &mut self,
     mir_value: Ptr<MirValue>,
   ) -> Result<AnyTypeEnum<'ctx>, String> {
-    match &mir_value.as_ref().borrow().kind {
+    match &mir_value.borrow().kind {
       MirValueKind::FnTy(params, ret_ty) => {
         let mut param_types = Vec::new();
         for param in params {
@@ -119,7 +121,7 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
 
         let ret_ty = self.codegen_basic_type(ret_ty.clone())?.into();
 
-        use BasicTypeEnum::*;
+        use LlvmBasicTypeEnum::*;
         match ret_ty {
           IntType(ty) => Ok(ty.fn_type(&param_types, false).into()),
           FloatType(ty) => Ok(ty.fn_type(&param_types, false).into()),
@@ -137,11 +139,11 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
   fn codegen_basic_value(
     &mut self,
     mir_value: Ptr<MirValue>,
-  ) -> Result<BasicValueEnum<'ctx>, String> {
-    match &mir_value.as_ref().borrow().kind {
+  ) -> Result<LlvmBasicValueEnum<'ctx>, String> {
+    match &mir_value.borrow().kind {
       MirValueKind::Lit(radix, text) => {
         let llvm_ty = self
-          .codegen_basic_type(mir_value.as_ref().borrow().ty.clone().unwrap())
+          .codegen_basic_type(mir_value.borrow().ty.clone().unwrap())
           .unwrap();
 
         let ll_radix = match radix {
@@ -151,7 +153,7 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
           Radix::Oct => StringRadix::Octal,
         };
 
-        use BasicTypeEnum::*;
+        use LlvmBasicTypeEnum::*;
         match llvm_ty {
           IntType(ty) => Ok(
             ty.const_int_from_string(text.as_str(), ll_radix)
@@ -168,10 +170,10 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
 
   fn codegen_block(&mut self, block: &MirBlock) -> Result<(), String> {
     for stmt in &block.stmts {
-      match &stmt.as_ref().borrow().kind {
+      match &stmt.borrow().kind {
         MirStmtKind::Return(value) => {
           if let Some(symbol) = value {
-            let mir_value = match &symbol.as_ref().borrow().kind {
+            let mir_value = match &symbol.borrow().kind {
               MirSymbolKind::Var(_spec, maybe_mir_value) => {
                 if let Some(mir_value) = maybe_mir_value {
                   mir_value.clone()
@@ -185,8 +187,8 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
             };
             let llvm_value = self.codegen_basic_value(mir_value.clone())?;
             self.builder.build_return(match &llvm_value {
-              BasicValueEnum::IntValue(v) => Some(v),
-              BasicValueEnum::FloatValue(v) => Some(v),
+              LlvmBasicValueEnum::IntValue(v) => Some(v),
+              LlvmBasicValueEnum::FloatValue(v) => Some(v),
               _ => unimplemented!(),
             });
           } else {

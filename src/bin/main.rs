@@ -1,7 +1,8 @@
 use clap::{Arg, ArgAction, Command};
-use inkwell::context::Context;
-use inkwell::targets::TargetTriple;
+use inkwell::context::Context as LlvmContext;
+use inkwell::targets::TargetTriple as LlvmTargetTriple;
 use oria::backend::LlvmIrCodegenContext;
+use oria::define::mir::codegen::MirCodegenContext;
 use oria::front::parser::handle_compunit;
 use std::fs::File;
 use std::io::prelude::*;
@@ -67,7 +68,7 @@ fn main() -> std::io::Result<()> {
   source_file.read_to_string(&mut source)?;
 
   let parse_result = handle_compunit(&source);
-  let compunit = match parse_result {
+  let ast_compunit = match parse_result {
     Ok(compunit) => compunit,
     Err(e) => {
       return Err(std::io::Error::new(
@@ -79,22 +80,27 @@ fn main() -> std::io::Result<()> {
 
   match emit.as_str() {
     "ast" => {
-      write!(output_file, "{:#?}", compunit)?;
+      write!(output_file, "{:#?}", ast_compunit)?;
     }
     "mir" => {
-      let mir_module = compunit.to_mir(module_name);
+      let mut mir_codegen_ctx = MirCodegenContext::new();
+      let mir_module =
+        mir_codegen_ctx.from_ast_compunit(module_name, &ast_compunit);
       write!(output_file, "{:#?}", mir_module)?;
     }
     "ir" => {
-      let mir_module = compunit.to_mir(module_name);
-      let llvm_module = Context::create();
-      let mut codegen_ctx = LlvmIrCodegenContext::new(&llvm_module);
-      codegen_ctx
+      let mut mir_codegen_ctx = MirCodegenContext::new();
+      let mir_module =
+        mir_codegen_ctx.from_ast_compunit(module_name, &ast_compunit);
+      let llvm_module = LlvmContext::create();
+      let mut llvm_codegen_ctx = LlvmIrCodegenContext::new(&llvm_module);
+      llvm_codegen_ctx
         .module
-        .set_triple(&TargetTriple::create(triple.as_str()));
-      let codegen_result = codegen_ctx.codegen(mir_module);
+        .set_triple(&LlvmTargetTriple::create(triple.as_str()));
+      let codegen_result =
+        llvm_codegen_ctx.codegen(mir_module, &mut mir_codegen_ctx);
       if let Ok(..) = codegen_result {
-        let ir_str = codegen_ctx.print();
+        let ir_str = llvm_codegen_ctx.print();
         write!(output_file, "{}", ir_str)?;
       } else {
         return Err(std::io::Error::new(

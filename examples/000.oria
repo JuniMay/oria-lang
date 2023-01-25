@@ -16,6 +16,6 @@ def get3() : Int32 => 1919810
 
 def get4() : Int64 => 114514i64
 
-def ret() : Int32 => {
+def ret() : Int32 => 'block {
   return 0
 }
