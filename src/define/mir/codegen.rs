@@ -44,7 +44,7 @@ impl MirCodegenContext {
   /// This will increase the counter of block labels.
   pub(super) fn fetch_block_label(&mut self) -> String {
     // The leading double underscore will be added when generating target code.
-    let label = format!("BLOCK_{}", self.block_lbl_cnt.next());
+    let label = format!("__BLOCK_{}", self.block_lbl_cnt.next());
     return label;
   }
 
@@ -174,11 +174,46 @@ impl MirCodegenContext {
               };
               block.push(stmt);
             }
-            Break(_label, _expr) => {
-              todo!()
+            Break(ast_label, ast_expr) => {
+              // TODO: Validate the label.
+              let break_label = if ast_label.is_none() {
+                block.label.clone()
+              } else {
+                ast_label.as_ref().unwrap().as_str()[1..].to_string()
+              };
+              let value = ast_expr
+                .as_ref()
+                .map(|expr| self.from_ast_expr(symbol_table.clone(), expr));
+
+              let symbol = if value.is_some() {
+                Some(
+                  symbol_table
+                    .borrow_mut()
+                    .register_temporary(value.unwrap(), self),
+                )
+              } else {
+                None
+              };
+              let stmt = Stmt::mk_break(break_label, symbol);
+              block.push(stmt);
             }
             Continue(_label) => {
               todo!()
+            }
+            If(ast_expr, ast_block, maybe_ast_else_expr) => {
+              let stmt = self.from_ast_if(
+                symbol_table.clone(),
+                ast_expr,
+                ast_block,
+                maybe_ast_else_expr,
+              );
+              block.push(stmt);
+            }
+            Block(ast_block) => {
+              let stmt = Stmt::mk_block(
+                self.from_ast_block(symbol_table.clone(), ast_block),
+              );
+              block.push(stmt);
             }
             _ => unimplemented!(),
           }
@@ -187,6 +222,43 @@ impl MirCodegenContext {
       }
     }
     return block;
+  }
+
+  fn from_ast_if(
+    &mut self,
+    symbol_table: Ptr<SymbolTable>,
+    ast_expr: &Box<ast::Expr>,
+    ast_block: &ast::Block,
+    maybe_ast_else_expr: &Option<Box<ast::Expr>>,
+  ) -> Ptr<Stmt> {
+    let cond = self.from_ast_expr(symbol_table.clone(), ast_expr);
+    let cond_symbol = symbol_table.borrow_mut().register_temporary(cond, self);
+    let then_block = self.from_ast_block(symbol_table.clone(), ast_block);
+    let else_block = maybe_ast_else_expr.as_ref().map(|ast_else_expr| {
+      use ast::ExprKind as AstExprKind;
+      match &ast_else_expr.kind {
+        AstExprKind::Block(ast_block) => {
+          self.from_ast_block(symbol_table.clone(), ast_block)
+        }
+        AstExprKind::If(ast_expr, ast_block, maybe_ast_else_block) => {
+          // Make a sub block to store the if statement.
+          let mut sub_block =
+            Block::new(self.fetch_block_label(), symbol_table.clone());
+          let stmt = self.from_ast_if(
+            symbol_table.clone(),
+            ast_expr,
+            ast_block,
+            maybe_ast_else_block,
+          );
+          sub_block.push(stmt);
+          sub_block
+        }
+        _ => unreachable!(),
+      }
+    });
+
+    let stmt = Stmt::mk_if(cond_symbol, then_block, else_block);
+    return stmt;
   }
 
   fn from_ast_item(
@@ -199,14 +271,18 @@ impl MirCodegenContext {
       AstItemKind::Def(def) => {
         let builtin = def.builtin;
         let ast_func = &def.body;
-        let mir_func_name = match &ast_func.name {
+        let mir_func_name_raw = match &ast_func.name {
           Some(name) => name.clone(),
           // The anonymous function shall not occur in the `def` item.
           None => self.fetach_lambda_fn_name(),
         };
+        let mir_func_name = if builtin {
+          mir_func_name_raw
+        } else {
+          self.mangle_name(mir_func_name_raw)
+        };
         let mir_func_symbol_table =
           SymbolTable::new(Some(symbol_table.clone()));
-
         let mir_params = (&ast_func.params)
           .into_iter()
           .map(|ast_param| {
@@ -224,7 +300,6 @@ impl MirCodegenContext {
             mir_param
           })
           .collect::<Vec<_>>();
-
         let mut mir_block = if let Some(ast_expr) = &ast_func.expr {
           Some(match &ast_expr.kind {
             ast::ExprKind::Block(block) => {
@@ -291,8 +366,37 @@ impl MirCodegenContext {
           mir_func,
         );
       }
+      AstItemKind::Module(ast_module) => {
+        let mir_module = self.from_ast_module(symbol_table.clone(), ast_module);
+        let _symbol = symbol_table
+          .borrow_mut()
+          .register_module(mir_module.clone());
+      }
       _ => unimplemented!(),
     }
+  }
+
+  fn from_ast_module(
+    &mut self,
+    symbol_table: Ptr<SymbolTable>,
+    ast_module: &ast::Module,
+  ) -> Ptr<Module> {
+    let mir_module_name = self.mangle_name(ast_module.name.clone());
+    let mir_module = Module::new(mir_module_name);
+
+    mir_module
+      .borrow_mut()
+      .symbol_table
+      .borrow_mut()
+      .set_parent(symbol_table.clone());
+
+    self.push_namespace(ast_module.name.clone());
+    for ast_item in &ast_module.items {
+      self.from_ast_item(mir_module.borrow().symbol_table.clone(), ast_item);
+    }
+    self.pop_namespace();
+
+    return mir_module;
   }
 
   pub fn from_ast_compunit(
@@ -300,7 +404,7 @@ impl MirCodegenContext {
     name: String,
     ast_compunit: &ast::CompUnit,
   ) -> Ptr<Module> {
-    let mir_module = Module::new(name);
+    let mir_module = Module::new(name.clone());
 
     mir_module
       .borrow_mut()
@@ -313,7 +417,7 @@ impl MirCodegenContext {
       .borrow_mut()
       .register_module(mir_module.clone());
 
-    self.push_namespace(mir_module.borrow().name.clone());
+    self.push_namespace(name.clone());
     for ast_item in &ast_compunit.items {
       self.from_ast_item(mir_module.borrow().symbol_table.clone(), ast_item);
     }
@@ -324,5 +428,16 @@ impl MirCodegenContext {
 
   pub fn solve_constraints(self) {
     todo!()
+  }
+
+  pub fn mangle_name(&self, name: String) -> String {
+    let mut mangled_name = String::from("__O");
+    for namespace in &self.namespaces {
+      mangled_name.push_str(namespace.len().to_string().as_str());
+      mangled_name.push_str(namespace.as_str());
+    }
+    mangled_name.push_str(name.len().to_string().as_str());
+    mangled_name.push_str(name.as_str());
+    return mangled_name;
   }
 }

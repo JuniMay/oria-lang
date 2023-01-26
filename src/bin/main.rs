@@ -86,7 +86,7 @@ fn main() -> std::io::Result<()> {
       let mut mir_codegen_ctx = MirCodegenContext::new();
       let mir_module =
         mir_codegen_ctx.from_ast_compunit(module_name, &ast_compunit);
-      write!(output_file, "{:#?}", mir_module)?;
+      write!(output_file, "{}", mir_module.as_ref().borrow())?;
     }
     "ir" => {
       let mut mir_codegen_ctx = MirCodegenContext::new();

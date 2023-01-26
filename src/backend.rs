@@ -37,8 +37,6 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
     mir_module: Ptr<MirModule>,
     mir_codegen_ctx: &mut MirCodegenContext,
   ) -> Result<(), String> {
-    self.module.set_name(mir_module.borrow().name.as_str());
-
     let symbol_table = mir_module.borrow().symbol_table.clone();
 
     for (name, symbol) in &symbol_table.borrow().table {
@@ -72,17 +70,21 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
             let label = func.body.as_ref().unwrap().label.clone();
             let llvm_curr_block = self.context.append_basic_block(
               llvm_func,
-              ("__BEGIN_".to_string() + &label.clone()).as_str(),
+              (label.clone() + "__BEGIN").as_str(),
             );
 
             self.builder.position_at_end(llvm_curr_block);
             self.codegen_block(func.body.as_ref().unwrap())?;
           }
         }
+        MirSymbolKind::Module(mir_module) => {
+          self.codegen(mir_module.clone(), mir_codegen_ctx)?;
+        }
         _ => return Err("Unimplemented".to_string()),
       }
     }
 
+    self.module.set_name(mir_module.borrow().name.as_str());
     Ok(())
   }
 

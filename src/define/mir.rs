@@ -1,5 +1,6 @@
 pub mod check;
 pub mod codegen;
+pub mod pretty;
 
 use self::check::TypeCheck;
 use self::codegen::MirCodegenContext;
@@ -96,6 +97,28 @@ impl Value {
   /// Substitute the value kind.
   pub(self) fn substitute(&mut self, other: Ptr<Value>) {
     self.kind = other.borrow().kind.clone();
+  }
+
+  pub(self) fn maybe_type(&self) -> bool {
+    match self.kind {
+      ValueKind::Unit
+      | ValueKind::Type(_)
+      | ValueKind::Ident(_)
+      | ValueKind::FnTy(..)
+      | ValueKind::Var(_) => true,
+      _ => false,
+    }
+  }
+
+  pub(self) fn maybe_term(&self) -> bool {
+    match self.kind {
+      ValueKind::Lit(..)
+      | ValueKind::Ident(_)
+      | ValueKind::Fn(..)
+      | ValueKind::Block(..)
+      | ValueKind::Var(_) => true,
+      _ => false,
+    }
   }
 
   pub(self) fn is_var(&self) -> bool {
@@ -232,6 +255,16 @@ impl SymbolTable {
     self.parent = Some(parent);
   }
 
+  pub fn lookup(&self, name: &String) -> Option<Ptr<Symbol>> {
+    if let Some(symbol) = self.table.get(name) {
+      return Some(symbol.clone());
+    }
+    if let Some(parent) = &self.parent {
+      return parent.borrow().lookup(name);
+    }
+    return None;
+  }
+
   pub fn register_temporary(
     &mut self,
     value: Ptr<Value>,
@@ -291,7 +324,7 @@ pub enum StmtKind {
   /// Block
   Block(Ptr<Block>),
   /// If
-  If(Ptr<Symbol>, Ptr<Block>, Option<Ptr<Block>>),
+  If(Ptr<Symbol>, Block, Option<Block>),
   /// Loop
   Loop(Ptr<Block>),
 }
@@ -309,6 +342,22 @@ impl Stmt {
 
   pub fn mk_return(value: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
     Stmt::new(StmtKind::Return(value), Span::default())
+  }
+
+  pub fn mk_break(label: Label, value: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Break(label, value), Span::default())
+  }
+
+  pub fn mk_if(
+    cond: Ptr<Symbol>,
+    then_block: Block,
+    else_block: Option<Block>,
+  ) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::If(cond, then_block, else_block), Span::default())
+  }
+
+  pub fn mk_block(block: Block) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Block(ptr(block)), Span::default())
   }
 }
 

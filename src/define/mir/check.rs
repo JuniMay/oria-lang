@@ -11,8 +11,8 @@ pub trait TypeCheck {
 impl TypeCheck for Fn {
   fn fetch_type(
     &mut self,
-    _symbol_table: Ptr<SymbolTable>,
-    _mir_codegen_ctx: &mut MirCodegenContext,
+    symbol_table: Ptr<SymbolTable>,
+    mir_codegen_ctx: &mut MirCodegenContext,
   ) -> Ptr<Value> {
     let mut params = Vec::new();
     for param in &self.params {
@@ -21,6 +21,15 @@ impl TypeCheck for Fn {
         param.ty.clone(),
         param.implicit,
       ));
+    }
+    if let Some(ref mut block) = self.body {
+      let maybe_ty =
+        block.fetch_type_helper(symbol_table, mir_codegen_ctx, None);
+      if let Some(ty) = maybe_ty {
+        mir_codegen_ctx.add_constraint(self.ret_ty.clone(), ty.clone());
+      } else {
+        mir_codegen_ctx.add_constraint(self.ret_ty.clone(), Value::mk_unit());
+      }
     }
     return Value::mk_fn_ty(params, self.ret_ty.clone());
   }
@@ -49,6 +58,18 @@ impl TypeCheck for Value {
             Some(func.fetch_type(symbol_table.clone(), mir_codegen_ctx));
           return self.ty.clone().unwrap();
         }
+        ValueKind::Ident(name) => {
+          let symbol = symbol_table.as_ref().borrow().lookup(name);
+          if let Some(symbol) = symbol {
+            let ty = symbol
+              .borrow_mut()
+              .fetch_type(symbol_table, mir_codegen_ctx);
+            self.ty = Some(ty);
+            return self.ty.clone().unwrap();
+          } else {
+            panic!("Undefined variable {}", name);
+          }
+        }
         _ => todo!(),
       }
     }
@@ -76,8 +97,125 @@ impl TypeCheck for Symbol {
           .borrow_mut()
           .fetch_type(symbol_table, mir_codegen_ctx);
       }
+      SymbolKind::Param(ty) => {
+        return ty.clone();
+      }
       _ => todo!(),
     }
+  }
+}
+
+impl Block {
+  fn fetch_type_helper(
+    &mut self,
+    symbol_table: Ptr<SymbolTable>,
+    mir_codegen_ctx: &mut MirCodegenContext,
+    expected_label: Option<Label>,
+  ) -> Option<Ptr<Value>> {
+    let mut maybe_ty: Option<Ptr<Value>> = None;
+    for stmt in &self.stmts {
+      match &mut stmt.borrow_mut().kind {
+        StmtKind::Return(Some(mir_symbol)) => {
+          if expected_label.is_none() {
+            let ty = mir_symbol
+              .borrow_mut()
+              .fetch_type(symbol_table.clone(), mir_codegen_ctx);
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
+            }
+            maybe_ty = Some(ty);
+          }
+        }
+        StmtKind::Return(None) => {
+          if expected_label.is_none() {
+            let ty = Value::mk_unit();
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
+            }
+            maybe_ty = Some(ty);
+          }
+        }
+        StmtKind::Break(label, None) => {
+          if expected_label.is_some() {
+            if *label != *expected_label.as_ref().unwrap() {
+              continue;
+            }
+            let ty = Value::mk_unit();
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
+            }
+            maybe_ty = Some(ty);
+          }
+        }
+        StmtKind::Break(label, Some(mir_symbol)) => {
+          if expected_label.is_some() {
+            if *label != *expected_label.as_ref().unwrap() {
+              continue;
+            }
+            let ty = mir_symbol
+              .borrow_mut()
+              .fetch_type(symbol_table.clone(), mir_codegen_ctx);
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
+            }
+            maybe_ty = Some(ty);
+          }
+        }
+        StmtKind::Block(block) => {
+          let inner_maybe_ty = block.borrow_mut().fetch_type_helper(
+            symbol_table.clone(),
+            mir_codegen_ctx,
+            expected_label.clone(),
+          );
+          if let Some(ref inner_ty) = inner_maybe_ty {
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(inner_ty.clone(), prev_ty.clone());
+            }
+            maybe_ty = Some(inner_ty.clone());
+          }
+        }
+        StmtKind::If(
+          _mir_cond_symbol,
+          ref mut mir_block,
+          maybe_mir_else_block,
+        ) => {
+          let maybe_block_ty = mir_block.fetch_type_helper(
+            symbol_table.clone(),
+            mir_codegen_ctx,
+            expected_label.clone(),
+          );
+          if maybe_mir_else_block.is_none() {
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(
+                maybe_block_ty.clone().unwrap(),
+                prev_ty.clone(),
+              );
+            }
+            maybe_ty = maybe_block_ty;
+          } else {
+            let maybe_else_block_ty =
+              maybe_mir_else_block.as_mut().unwrap().fetch_type_helper(
+                symbol_table.clone(),
+                mir_codegen_ctx,
+                expected_label.clone(),
+              );
+            if let Some(ref prev_ty) = maybe_ty {
+              mir_codegen_ctx.add_constraint(
+                maybe_block_ty.clone().unwrap(),
+                prev_ty.clone(),
+              );
+              mir_codegen_ctx.add_constraint(
+                maybe_else_block_ty.clone().unwrap(),
+                prev_ty.clone(),
+              );
+            }
+            maybe_ty = maybe_else_block_ty
+          }
+        }
+        _ => {}
+      }
+    }
+    return maybe_ty;
   }
 }
 
@@ -87,34 +225,15 @@ impl TypeCheck for Block {
     symbol_table: Ptr<SymbolTable>,
     mir_codegen_ctx: &mut MirCodegenContext,
   ) -> Ptr<Value> {
-    let mut maybe_ty: Option<Ptr<Value>> = None;
-    for stmt in &self.stmts {
-      match &stmt.borrow_mut().kind {
-        StmtKind::Return(Some(mir_symbol)) => {
-          let ty = mir_symbol
-            .borrow_mut()
-            .fetch_type(symbol_table.clone(), mir_codegen_ctx);
-          if let Some(ref prev_ty) = maybe_ty {
-            mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
-          }
-          maybe_ty = Some(ty);
-        }
-        StmtKind::Return(None) => {
-          let ty = Value::mk_unit();
-          if let Some(ref prev_ty) = maybe_ty {
-            mir_codegen_ctx.add_constraint(ty.clone(), prev_ty.clone());
-          }
-          maybe_ty = Some(ty);
-        }
-        _ => todo!(),
-      }
-    }
-
-    if let None = maybe_ty {
-      return Value::mk_unit();
+    let maybe_ty = self.fetch_type_helper(
+      symbol_table,
+      mir_codegen_ctx,
+      Some(self.label.clone()),
+    );
+    if let Some(ty) = maybe_ty {
+      return ty;
     } else {
-      // TODO: Type check the return type.
-      return maybe_ty.unwrap();
+      return Value::mk_unit();
     }
   }
 }
