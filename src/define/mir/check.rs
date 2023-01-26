@@ -85,9 +85,7 @@ impl TypeCheck for Symbol {
     match &mut self.kind {
       SymbolKind::Var(_spec, maybe_mir_value) => {
         if let Some(ref mut mir_value) = maybe_mir_value {
-          return mir_value
-            .borrow_mut()
-            .fetch_type(symbol_table, mir_codegen_ctx);
+          return mir_value.clone();
         } else {
           panic!("Variable {} has no type", self.name);
         }

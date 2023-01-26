@@ -361,7 +361,6 @@ impl MirCodegenContext {
           mir_func_symbol_table.clone(),
         );
         let _symbol = symbol_table.borrow_mut().register_def(
-          mir_func_name.clone(),
           builtin,
           mir_func,
         );

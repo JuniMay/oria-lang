@@ -191,19 +191,36 @@ pub enum VarSpec {
   None,
 }
 
+/// Symbol kinds.
 #[derive(Debug, Clone)]
 pub enum SymbolKind {
+  /// Function parameter with the type.
   Param(Ptr<Value>),
+  /// Variable with specification and the type.
+  /// 
+  /// The variable can be declared through `let`.
+  /// The symbol can be used in when type-checking the assign statement.
   Var(VarSpec, Option<Ptr<Value>>),
+  /// Constant with the value.
   Const(Ptr<Value>),
+  /// Definition of a function.
+  /// 
+  /// The bool indicates whether the function is builtin,
   Def(bool, Fn),
+  /// Temporary symbol with the value.
   Temporary(Ptr<Value>),
+  /// A module.
   Module(Ptr<Module>),
 }
 
+/// A symbol.
 #[derive(Debug, Clone)]
 pub struct Symbol {
+  /// The name of the symbol.
+  /// 
+  /// The name is also used as the key in the symbol table.
   pub name: String,
+  /// Symbol kind.
   pub kind: SymbolKind,
 }
 
@@ -229,14 +246,20 @@ impl Symbol {
   }
 }
 
+/// A symbol table.
 #[derive(Clone)]
 pub struct SymbolTable {
+  /// The symbol table.
+  /// 
+  /// The key is the name of the symbol.
   pub table: HashMap<String, Ptr<Symbol>>,
+  /// Symbol table of the parent scope.
   pub parent: Option<Ptr<SymbolTable>>,
 }
 
 impl fmt::Debug for SymbolTable {
   fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+    // The debug implementation of `SymbolTable` does not print the parent
     f.debug_struct("SymbolTable")
       .field("table", &self.table)
       .finish()
@@ -251,10 +274,15 @@ impl SymbolTable {
     })
   }
 
+  /// Set the parent of the symbol table.
   pub fn set_parent(&mut self, parent: Ptr<SymbolTable>) {
     self.parent = Some(parent);
   }
 
+  /// Look up a symbol by its name.
+  ///
+  /// If the symbol is not found in the current scope, the parent scope will be
+  /// searched recursively.
   pub fn lookup(&self, name: &String) -> Option<Ptr<Symbol>> {
     if let Some(symbol) = self.table.get(name) {
       return Some(symbol.clone());
@@ -265,6 +293,9 @@ impl SymbolTable {
     return None;
   }
 
+  /// Register a temporary symbol with the value.
+  ///
+  /// The name of the temporary symbol will be derived from `mir_codegen_ctx`.
   pub fn register_temporary(
     &mut self,
     value: Ptr<Value>,
@@ -278,6 +309,7 @@ impl SymbolTable {
     return symbol;
   }
 
+  /// Register a module.
   pub fn register_module(&mut self, module: Ptr<Module>) -> Ptr<Symbol> {
     let name = module.borrow().name.clone();
     let symbol = Symbol::mk_module(name, module);
@@ -287,6 +319,9 @@ impl SymbolTable {
     return symbol;
   }
 
+  /// Register a parameter.
+  ///
+  /// This is used when handling functions.
   pub fn register_param(&mut self, param: &FnParam) -> Ptr<Symbol> {
     let name = param.name.clone();
     if let None = name {
@@ -299,13 +334,9 @@ impl SymbolTable {
     return symbol;
   }
 
-  pub fn register_def(
-    &mut self,
-    name: String,
-    builtin: bool,
-    func: Fn,
-  ) -> Ptr<Symbol> {
-    let symbol = Symbol::mk_def(name, builtin, func);
+  /// Register a function definition.
+  pub fn register_def(&mut self, builtin: bool, func: Fn) -> Ptr<Symbol> {
+    let symbol = Symbol::mk_def(func.name.clone(), builtin, func);
     self
       .table
       .insert(symbol.borrow().name.clone(), symbol.clone());
@@ -313,6 +344,7 @@ impl SymbolTable {
   }
 }
 
+/// Statement kinds.
 #[derive(Debug, Clone)]
 pub enum StmtKind {
   /// Return
@@ -329,9 +361,12 @@ pub enum StmtKind {
   Loop(Ptr<Block>),
 }
 
+/// A statement.
 #[derive(Debug, Clone)]
 pub struct Stmt {
+  /// The kind of the statement.
   pub kind: StmtKind,
+  /// The span of the corresponding part in the source code.
   pub span: Span,
 }
 
@@ -340,20 +375,24 @@ impl Stmt {
     ptr(Stmt { kind, span })
   }
 
-  pub fn mk_return(value: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
-    Stmt::new(StmtKind::Return(value), Span::default())
+  /// Make a return statement with optional return symbol.
+  pub fn mk_return(maybe_symbol: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Return(maybe_symbol), Span::default())
   }
 
-  pub fn mk_break(label: Label, value: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
-    Stmt::new(StmtKind::Break(label, value), Span::default())
+
+  /// Make a break statement with label and optional symbol.
+  pub fn mk_break(label: Label, maybe_symbol: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Break(label, maybe_symbol), Span::default())
   }
 
+  /// Make an if statement.
   pub fn mk_if(
     cond: Ptr<Symbol>,
     then_block: Block,
-    else_block: Option<Block>,
+    maybe_else_block: Option<Block>,
   ) -> Ptr<Stmt> {
-    Stmt::new(StmtKind::If(cond, then_block, else_block), Span::default())
+    Stmt::new(StmtKind::If(cond, then_block, maybe_else_block), Span::default())
   }
 
   pub fn mk_block(block: Block) -> Ptr<Stmt> {
