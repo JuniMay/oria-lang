@@ -1,3 +1,4 @@
+use crate::define::mir::mangling::NameMangling;
 use crate::define::mir::{
   check::TypeCheck, codegen::MirCodegenContext, Block as MirBlock,
   Module as MirModule, StmtKind as MirStmtKind, SymbolKind as MirSymbolKind,
@@ -39,42 +40,45 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
   ) -> Result<(), String> {
     let symbol_table = mir_module.borrow().symbol_table.clone();
 
-    for (name, symbol) in &symbol_table.borrow().table {
+    for (_name, symbol) in &symbol_table.borrow().table {
       match &mut symbol.borrow_mut().kind {
-        MirSymbolKind::Def(builtin, ref mut func) => {
+        MirSymbolKind::Def(builtin, ref mut mir_func) => {
           if *builtin {
             let llvm_ty = self.codegen_type(
-              func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
+              mir_func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
             )?;
             let llvm_fn_ty = match llvm_ty {
               AnyTypeEnum::FunctionType(ty) => ty,
               _ => return Err("Invalid function type".to_string()),
             };
             let _llvm_func = self.module.add_function(
-              name.as_str(),
+              mir_func.mangle().as_str(),
               llvm_fn_ty,
               Some(Linkage::External),
             );
           } else {
             let llvm_ty = self.codegen_type(
-              func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
+              mir_func.fetch_type(symbol_table.clone(), mir_codegen_ctx),
             )?;
             let llvm_fn_ty = match llvm_ty {
               AnyTypeEnum::FunctionType(ty) => ty,
               _ => return Err("Invalid function type".to_string()),
             };
 
-            let llvm_func =
-              self.module.add_function(name.as_str(), llvm_fn_ty, None);
+            let llvm_func = self.module.add_function(
+              mir_func.mangle().as_str(),
+              llvm_fn_ty,
+              None,
+            );
 
-            let label = func.body.as_ref().unwrap().label.clone();
+            let label = mir_func.body.as_ref().unwrap().label.clone();
             let llvm_curr_block = self.context.append_basic_block(
               llvm_func,
               (label.clone() + "__BEGIN").as_str(),
             );
 
             self.builder.position_at_end(llvm_curr_block);
-            self.codegen_block(func.body.as_ref().unwrap())?;
+            self.codegen_block(mir_func.body.as_ref().unwrap())?;
           }
         }
         MirSymbolKind::Module(mir_module) => {

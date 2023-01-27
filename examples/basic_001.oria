@@ -29,3 +29,13 @@ def control2() => {
   }
   return 0
 }
+
+def block() => {
+  {
+    {
+      {
+        return 0
+      }
+    }
+  }
+}

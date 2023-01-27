@@ -1,9 +1,12 @@
+use crate::define::mir::mangling::NameMangling;
+
 use super::*;
 use std::fmt;
 use textwrap::indent;
 
 impl fmt::Display for Module {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "# {}\n", self.mangle())?;
     write!(f, "module {} {{\n", self.name)?;
     for (_, symbol) in &self.symbol_table.borrow().table {
       write!(f, "{}\n", indent(&format!("{}", symbol.borrow()), "  "))?;
@@ -17,6 +20,7 @@ impl fmt::Display for Symbol {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match &self.kind {
       SymbolKind::Def(builtin, func) => {
+        write!(f, "# {}\n", func.mangle())?;
         if *builtin {
           write!(f, "def builtin {}", func)?;
         } else {
@@ -146,8 +150,7 @@ impl fmt::Display for Stmt {
       }
       StmtKind::Loop(block) => {
         write!(f, "loop {}", block.borrow())?;
-      }
-      // _ => unimplemented!(),
+      } // _ => unimplemented!(),
     }
     Ok(())
   }

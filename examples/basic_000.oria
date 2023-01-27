@@ -18,11 +18,5 @@ module test_module {
 }
 
 def ret() : Int32 => 'block {
-  {
-    {
-      {
-        return 0
-      }
-    }
-  }
+  return 0
 }

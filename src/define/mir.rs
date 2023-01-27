@@ -1,5 +1,6 @@
 pub mod check;
 pub mod codegen;
+pub mod mangling;
 pub mod pretty;
 
 use self::check::TypeCheck;
@@ -10,6 +11,7 @@ use std::{collections::HashMap, fmt};
 
 pub type Level = u64;
 pub type Label = String;
+pub type Namespaces = Vec<String>;
 
 #[derive(Debug, Clone)]
 pub struct FnParam {
@@ -24,13 +26,23 @@ impl FnParam {
   }
 }
 
+/// A function.
 #[derive(Debug, Clone)]
 pub struct Fn {
+  /// Function name.
   pub name: String,
+  /// Parameters
   pub params: Vec<FnParam>,
+  /// Return type.
   pub ret_ty: Ptr<Value>,
+  /// Function body.
+  ///
+  /// The expressions in AST will be converted into blocks in MIR.
   pub body: Option<Block>,
+  /// Symbol table of the function scope.
   pub symbol_table: Ptr<SymbolTable>,
+  /// Namespaces which the function belongs to and can be indexed from.
+  pub namespaces: Namespaces,
 }
 
 impl Fn {
@@ -40,6 +52,7 @@ impl Fn {
     ret_ty: Ptr<Value>,
     body: Option<Block>,
     symbol_table: Ptr<SymbolTable>,
+    namespaces: Namespaces,
   ) -> Fn {
     Fn {
       name,
@@ -47,6 +60,7 @@ impl Fn {
       ret_ty,
       body,
       symbol_table,
+      namespaces,
     }
   }
 }
@@ -164,9 +178,10 @@ impl Value {
     ty: Ptr<Value>,
     body: Option<Block>,
     symbol_table: Ptr<SymbolTable>,
+    namespaces: Namespaces,
   ) -> Ptr<Value> {
     Value::new(
-      ValueKind::Fn(Fn::new(name, params, ty, body, symbol_table)),
+      ValueKind::Fn(Fn::new(name, params, ty, body, symbol_table, namespaces)),
       None,
     )
   }
@@ -197,14 +212,14 @@ pub enum SymbolKind {
   /// Function parameter with the type.
   Param(Ptr<Value>),
   /// Variable with specification and the type.
-  /// 
+  ///
   /// The variable can be declared through `let`.
   /// The symbol can be used in when type-checking the assign statement.
   Var(VarSpec, Option<Ptr<Value>>),
   /// Constant with the value.
   Const(Ptr<Value>),
   /// Definition of a function.
-  /// 
+  ///
   /// The bool indicates whether the function is builtin,
   Def(bool, Fn),
   /// Temporary symbol with the value.
@@ -217,7 +232,7 @@ pub enum SymbolKind {
 #[derive(Debug, Clone)]
 pub struct Symbol {
   /// The name of the symbol.
-  /// 
+  ///
   /// The name is also used as the key in the symbol table.
   pub name: String,
   /// Symbol kind.
@@ -250,7 +265,7 @@ impl Symbol {
 #[derive(Clone)]
 pub struct SymbolTable {
   /// The symbol table.
-  /// 
+  ///
   /// The key is the name of the symbol.
   pub table: HashMap<String, Ptr<Symbol>>,
   /// Symbol table of the parent scope.
@@ -380,9 +395,11 @@ impl Stmt {
     Stmt::new(StmtKind::Return(maybe_symbol), Span::default())
   }
 
-
   /// Make a break statement with label and optional symbol.
-  pub fn mk_break(label: Label, maybe_symbol: Option<Ptr<Symbol>>) -> Ptr<Stmt> {
+  pub fn mk_break(
+    label: Label,
+    maybe_symbol: Option<Ptr<Symbol>>,
+  ) -> Ptr<Stmt> {
     Stmt::new(StmtKind::Break(label, maybe_symbol), Span::default())
   }
 
@@ -392,7 +409,10 @@ impl Stmt {
     then_block: Block,
     maybe_else_block: Option<Block>,
   ) -> Ptr<Stmt> {
-    Stmt::new(StmtKind::If(cond, then_block, maybe_else_block), Span::default())
+    Stmt::new(
+      StmtKind::If(cond, then_block, maybe_else_block),
+      Span::default(),
+    )
   }
 
   pub fn mk_block(block: Block) -> Ptr<Stmt> {
@@ -425,13 +445,15 @@ impl Block {
 pub struct Module {
   pub name: String,
   pub symbol_table: Ptr<SymbolTable>,
+  pub namespaces: Namespaces,
 }
 
 impl Module {
-  pub fn new(name: String) -> Ptr<Module> {
+  pub fn new(name: String, namespaces: Namespaces) -> Ptr<Module> {
     ptr(Module {
       name,
       symbol_table: SymbolTable::new(None),
+      namespaces,
     })
   }
 }

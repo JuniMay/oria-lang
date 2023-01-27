@@ -271,15 +271,10 @@ impl MirCodegenContext {
       AstItemKind::Def(def) => {
         let builtin = def.builtin;
         let ast_func = &def.body;
-        let mir_func_name_raw = match &ast_func.name {
+        let mir_func_name = match &ast_func.name {
           Some(name) => name.clone(),
           // The anonymous function shall not occur in the `def` item.
           None => self.fetach_lambda_fn_name(),
-        };
-        let mir_func_name = if builtin {
-          mir_func_name_raw
-        } else {
-          self.mangle_name(mir_func_name_raw)
         };
         let mir_func_symbol_table =
           SymbolTable::new(Some(symbol_table.clone()));
@@ -359,11 +354,9 @@ impl MirCodegenContext {
           mir_ret_ty,
           mir_block,
           mir_func_symbol_table.clone(),
+          self.namespaces.clone(),
         );
-        let _symbol = symbol_table.borrow_mut().register_def(
-          builtin,
-          mir_func,
-        );
+        let _symbol = symbol_table.borrow_mut().register_def(builtin, mir_func);
       }
       AstItemKind::Module(ast_module) => {
         let mir_module = self.from_ast_module(symbol_table.clone(), ast_module);
@@ -380,8 +373,8 @@ impl MirCodegenContext {
     symbol_table: Ptr<SymbolTable>,
     ast_module: &ast::Module,
   ) -> Ptr<Module> {
-    let mir_module_name = self.mangle_name(ast_module.name.clone());
-    let mir_module = Module::new(mir_module_name);
+    let mir_module_name = ast_module.name.clone();
+    let mir_module = Module::new(mir_module_name, self.namespaces.clone());
 
     mir_module
       .borrow_mut()
@@ -403,7 +396,7 @@ impl MirCodegenContext {
     name: String,
     ast_compunit: &ast::CompUnit,
   ) -> Ptr<Module> {
-    let mir_module = Module::new(name.clone());
+    let mir_module = Module::new(name.clone(), self.namespaces.clone());
 
     mir_module
       .borrow_mut()
@@ -427,16 +420,5 @@ impl MirCodegenContext {
 
   pub fn solve_constraints(self) {
     todo!()
-  }
-
-  pub fn mangle_name(&self, name: String) -> String {
-    let mut mangled_name = String::from("__O");
-    for namespace in &self.namespaces {
-      mangled_name.push_str(namespace.len().to_string().as_str());
-      mangled_name.push_str(namespace.as_str());
-    }
-    mangled_name.push_str(name.len().to_string().as_str());
-    mangled_name.push_str(name.as_str());
-    return mangled_name;
   }
 }
