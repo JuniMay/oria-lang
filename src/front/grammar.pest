@@ -57,12 +57,12 @@ OpExpr = { PrefixOp* ~ QualifiedExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ Quali
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
 FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ QualifiedExpr)? }
-FnParamsImplicit = { "<" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ">" }
+FnParamsImplicit = { "[" ~ (FnParam ~ ("," ~ FnParam)*)? ~ "]" }
 FnParamsExplicit = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
 FnParam = { Ident ~ (":" ~ QualifiedExpr)? }
 
 FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ QualifiedExpr }
-FnTyParamsImplicit = { "<" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ">" }
+FnTyParamsImplicit = { "[" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ "]" }
 FnTyParamsExplicit = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
 FnTyParam = { (Ident ~ ":")? ~ QualifiedExpr }
 
@@ -74,7 +74,7 @@ AtomicExpr = { PrimaryExpr ~ FnArgs* }
 
 FnArgs = { FnArgsExplicit | FnArgsImplicit }
 FnArgsExplicit = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
-FnArgsImplicit = { "<" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ">" }
+FnArgsImplicit = { "[" ~ (FnArg ~ ("," ~ FnArg)*)? ~ "]" }
 FnArg = { (Ident ~ "=")? ~ Expr }
 
 Tuple = { "(" ~ Expr ~ ("," ~ Expr)+ ~ ")" }

@@ -17,13 +17,13 @@ type builtin @array(@usize, Type)
 type builtin @slice(Type)
 
 type @char = @u32
-type @str   = @slice(@u8)
+type @str  = @slice(@u8)
 
-def builtin @add_i8 (@i8,  @i8) : @i8
+def builtin @add_i8(@i8,  @i8) : @i8
 def builtin @add_i16(@i16, @i16): @i16
 def builtin @add_i32(@i32, @i32): @i32
 def builtin @add_i64(@i64, @i64): @i64
-def builtin @add_u8 (@u8,  @u8) : @u8
+def builtin @add_u8(@u8,  @u8) : @u8
 def builtin @add_u16(@u16, @u16): @u16
 def builtin @add_u32(@u32, @u32): @u32
 def builtin @add_u64(@u64, @u64): @u64
@@ -33,47 +33,47 @@ def builtin @add_f64(@f64, @f64): @f64
 def builtin @add_isize(@isize, @isize): @isize
 def builtin @add_usize(@usize, @usize): @usize
 
-def builtin @sub_i8 (@i8,  @i8) : @i8
-def builtin @sub_i16(@i16, @i16): @i16
-def builtin @sub_i32(@i32, @i32): @i32
-def builtin @sub_i64(@i64, @i64): @i64
-def builtin @sub_u8 (@u8,  @u8) : @u8
-def builtin @sub_u16(@u16, @u16): @u16
-def builtin @sub_u32(@u32, @u32): @u32
-def builtin @sub_u64(@u64, @u64): @u64
-def builtin @sub_f32(@f32, @f32): @f32
-def builtin @sub_f64(@f64, @f64): @f64
+def builtin @sub_i8(@i8, @i8) : @i8
+def builtin @sub_i16(@i16, @i16) : @i16
+def builtin @sub_i32(@i32, @i32) : @i32
+def builtin @sub_i64(@i64, @i64) : @i64
+def builtin @sub_u8(@u8, @u8) : @u8
+def builtin @sub_u16(@u16, @u16) : @u16
+def builtin @sub_u32(@u32, @u32) : @u32
+def builtin @sub_u64(@u64, @u64) : @u64
+def builtin @sub_f32(@f32, @f32) : @f32
+def builtin @sub_f64(@f64, @f64) : @f64
 
-def builtin @sub_isize(@isize, @isize): @isize
-def builtin @sub_usize(@usize, @usize): @usize
+def builtin @sub_isize(@isize, @isize) : @isize
+def builtin @sub_usize(@usize, @usize) : @usize
 
-def builtin @mul_i8 (@i8,  @i8) : @i8
-def builtin @mul_i16(@i16, @i16): @i16
-def builtin @mul_i32(@i32, @i32): @i32
-def builtin @mul_i64(@i64, @i64): @i64
-def builtin @mul_u8 (@u8,  @u8) : @u8
-def builtin @mul_u16(@u16, @u16): @u16
-def builtin @mul_u32(@u32, @u32): @u32
-def builtin @mul_u64(@u64, @u64): @u64
-def builtin @mul_f32(@f32, @f32): @f32
-def builtin @mul_f64(@f64, @f64): @f64
+def builtin @mul_i8(@i8, @i8) : @i8
+def builtin @mul_i16(@i16, @i16) : @i16
+def builtin @mul_i32(@i32, @i32) : @i32
+def builtin @mul_i64(@i64, @i64) : @i64
+def builtin @mul_u8(@u8, @u8) : @u8
+def builtin @mul_u16(@u16, @u16) : @u16
+def builtin @mul_u32(@u32, @u32) : @u32
+def builtin @mul_u64(@u64, @u64) : @u64
+def builtin @mul_f32(@f32, @f32) : @f32
+def builtin @mul_f64(@f64, @f64) : @f64
 
-def builtin @mul_isize(@isize, @isize): @isize
-def builtin @mul_usize(@usize, @usize): @usize
+def builtin @mul_isize(@isize, @isize) : @isize
+def builtin @mul_usize(@usize, @usize) : @usize
 
-def builtin @div_i8 (@i8,  @i8) : (@i8,  @i8)
-def builtin @div_i16(@i16, @i16): (@i16, @i16)
-def builtin @div_i32(@i32, @i32): (@i32, @i32)
-def builtin @div_i64(@i64, @i64): (@i64, @i64)
-def builtin @div_u8 (@u8,  @u8) : (@u8,  @u8)
-def builtin @div_u16(@u16, @u16): (@u16, @u16)
-def builtin @div_u32(@u32, @u32): (@u32, @u32)
-def builtin @div_u64(@u64, @u64): (@u64, @u64)
-def builtin @div_f32(@f32, @f32): @f32
-def builtin @div_f64(@f64, @f64): @f64
+def builtin @div_i8(@i8, @i8) : (@i8, @i8)
+def builtin @div_i16(@i16, @i16) : (@i16, @i16)
+def builtin @div_i32(@i32, @i32) : (@i32, @i32)
+def builtin @div_i64(@i64, @i64) : (@i64, @i64)
+def builtin @div_u8(@u8, @u8) : (@u8, @u8)
+def builtin @div_u16(@u16, @u16) : (@u16, @u16)
+def builtin @div_u32(@u32, @u32) : (@u32, @u32)
+def builtin @div_u64(@u64, @u64) : (@u64, @u64)
+def builtin @div_f32(@f32, @f32) : @f32
+def builtin @div_f64(@f64, @f64) : @f64
 
-def builtin @div_isize(@isize, @isize): (@isize, @isize)
-def builtin @div_usize(@usize, @usize): (@usize, @usize)
+def builtin @div_isize(@isize, @isize) : (@isize, @isize)
+def builtin @div_usize(@usize, @usize) : (@usize, @usize)
 
 type Int8 =  record { value : @i8 }
 type Int16 =  record { value : @i16 }
@@ -92,18 +92,18 @@ type UInt =  record { value : @usize }
 def builtin @llvm_ir(@str): Unit
 def builtin @asm(@str): Unit
 
-def builtin @typeof<T>(x : T) => T
+def builtin @typeof[T](x : T) => T
 
 def the(T : Type, x : T) : T => x
 
-def id<T: Type>(x : T) : T => x
+def id[T: Type](x : T) : T => x
 
 type Void
 
-type PhantomData<Type>
+type PhantomData[Type]
 
-type Equal<A : Type, B : Type>(x : A, y : B) =
-  | Refl<A : Type, x : A> : Equal(x, x) 
+type Equal[A : Type, B : Type](x : A, y : B) =
+  | Refl[A : Type, x : A] : Equal(x, x) 
 
 # the(Equal(2, 3), Refl) shall fail to typecheck
 

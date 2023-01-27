@@ -4,7 +4,7 @@ const E    : Float64 = 2.71828182845904523536
 const LN2  : Float64 = 0.69314718055994530942
 const LN10 : Float64 = 2.30258509299404568402
 
-def abs<T: Type>(x: T) : T => {
+def abs[T: Type](x: T) : T => {
   if x < 0 {
     return -x
   }
