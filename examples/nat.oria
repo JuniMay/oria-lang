@@ -1,0 +1,19 @@
+type Bool = 
+  | False
+  | True
+
+type Nat =
+  | Zero
+  | Succ(Nat)
+
+impl Nat {
+  def is_zero(self : Nat) : Bool => match self {
+    Nat::Zero => return True,
+    Nat::Succ(_) => return False
+  }
+
+  def is_succ(self : Nat) : Bool => match self {
+    Nat::Zero => return False,
+    Nat::Succ(_) => return True
+  }
+}

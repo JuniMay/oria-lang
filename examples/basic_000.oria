@@ -4,17 +4,19 @@ def builtin putchar() : Int32
 
 def main() : Int32 => 0
 
-def get_float() : Float32 => 1.32
+def get_float() => 1.32
 
-def get_int64() : Int64 => 114514i64
+def get_double() => 1287.131262f64
 
-def identity(x : Int32) => x
+def get_int64() => 0x114514i64
+
+# def identity(x : Int32) => x
 
 module test_module {
-  def get1() : Int64 => 114514i64
-  def get2() : Int64 => 114514i64
-  def get3() : Int32 => 1919810
-  def get4() : Int64 => 114514i64
+  def get1() => 0b101i64
+  def get2() : Int64 => 0o114514i64
+  def get3() => 0x1919810
+  def get4() : Int64 => 0xdeadbeefi64
 }
 
 def ret() : Int32 => 'block {

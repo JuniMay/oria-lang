@@ -322,6 +322,7 @@ fn handle_literal(pair: Pair<Rule>) -> Lit {
   for pair in pairs {
     match pair.as_rule() {
       Rule::LiteralSuffix => suffix = Some(handle_literal_suffix(pair)),
+      Rule::HexPrefix | Rule::OctPrefix | Rule::BinPrefix => {}
       _ => text.push_str(pair.as_str()),
     }
   }

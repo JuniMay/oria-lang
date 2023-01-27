@@ -108,40 +108,6 @@ impl Value {
     })
   }
 
-  /// Substitute the value kind.
-  pub(self) fn substitute(&mut self, other: Ptr<Value>) {
-    self.kind = other.borrow().kind.clone();
-  }
-
-  pub(self) fn maybe_type(&self) -> bool {
-    match self.kind {
-      ValueKind::Unit
-      | ValueKind::Type(_)
-      | ValueKind::Ident(_)
-      | ValueKind::FnTy(..)
-      | ValueKind::Var(_) => true,
-      _ => false,
-    }
-  }
-
-  pub(self) fn maybe_term(&self) -> bool {
-    match self.kind {
-      ValueKind::Lit(..)
-      | ValueKind::Ident(_)
-      | ValueKind::Fn(..)
-      | ValueKind::Block(..)
-      | ValueKind::Var(_) => true,
-      _ => false,
-    }
-  }
-
-  pub(self) fn is_var(&self) -> bool {
-    match &self.kind {
-      ValueKind::Var(_) => true,
-      _ => false,
-    }
-  }
-
   pub(self) fn mk_unit() -> Ptr<Value> {
     Value::new(ValueKind::Unit, Some(Value::mk_type(0)))
   }
@@ -188,14 +154,6 @@ impl Value {
 
   pub(self) fn mk_var(mir_codegen_ctx: &mut MirCodegenContext) -> Ptr<Value> {
     Value::new(ValueKind::Var(mir_codegen_ctx.value_var_cnt.next()), None)
-  }
-
-  /// Upgrades the type of the value to the next level.
-  /// If the value is not a type, no change will be made.
-  pub(self) fn level_up(&mut self) {
-    if let ValueKind::Type(level) = self.kind {
-      self.kind = ValueKind::Type(level + 1);
-    }
   }
 }
 

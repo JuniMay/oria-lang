@@ -1,0 +1,1 @@
+def this_shall_fail_to_type_check() : Int64 /* UInt64 */ => 0u32 /* UInt32 */

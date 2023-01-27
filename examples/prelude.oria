@@ -19,19 +19,19 @@ type builtin @slice(Type)
 type @char = @u32
 type @str  = @slice(@u8)
 
-def builtin @add_i8(@i8,  @i8) : @i8
-def builtin @add_i16(@i16, @i16): @i16
-def builtin @add_i32(@i32, @i32): @i32
-def builtin @add_i64(@i64, @i64): @i64
-def builtin @add_u8(@u8,  @u8) : @u8
-def builtin @add_u16(@u16, @u16): @u16
-def builtin @add_u32(@u32, @u32): @u32
-def builtin @add_u64(@u64, @u64): @u64
-def builtin @add_f32(@f32, @f32): @f32
-def builtin @add_f64(@f64, @f64): @f64
+def builtin @add_i8(@i8, @i8) : @i8
+def builtin @add_i16(@i16, @i16) : @i16
+def builtin @add_i32(@i32, @i32) : @i32
+def builtin @add_i64(@i64, @i64) : @i64
+def builtin @add_u8(@u8, @u8) : @u8
+def builtin @add_u16(@u16, @u16) : @u16
+def builtin @add_u32(@u32, @u32) : @u32
+def builtin @add_u64(@u64, @u64) : @u64
+def builtin @add_f32(@f32, @f32) : @f32
+def builtin @add_f64(@f64, @f64) : @f64
 
-def builtin @add_isize(@isize, @isize): @isize
-def builtin @add_usize(@usize, @usize): @usize
+def builtin @add_isize(@isize, @isize) : @isize
+def builtin @add_usize(@usize, @usize) : @usize
 
 def builtin @sub_i8(@i8, @i8) : @i8
 def builtin @sub_i16(@i16, @i16) : @i16
@@ -75,28 +75,62 @@ def builtin @div_f64(@f64, @f64) : @f64
 def builtin @div_isize(@isize, @isize) : (@isize, @isize)
 def builtin @div_usize(@usize, @usize) : (@usize, @usize)
 
-type Int8 =  record { value : @i8 }
-type Int16 =  record { value : @i16 }
-type Int32 =  record { value : @i32 }
-type Int64 =  record { value : @i64 }
-type UInt8 =  record { value : @u8 }
-type UInt16 =  record { value : @u16 }
-type UInt32 =  record { value : @u32 }
-type UInt64 =  record { value : @u64 }
-type Float32 =  record { value : @f32 }
-type Float64 =  record { value : @f64 }
+type Int8 =  record { 
+  value : @i8
+}
 
-type Int =  record { value : @isize }
-type UInt =  record { value : @usize }
+type Int16 =  record { 
+  value : @i16
+}
 
-def builtin @llvm_ir(@str): Unit
-def builtin @asm(@str): Unit
+type Int32 =  record { 
+  value : @i32
+}
+
+type Int64 =  record { 
+  value : @i64
+}
+
+type UInt8 =  record { 
+  value : @u8
+}
+
+type UInt16 =  record { 
+  value : @u16
+}
+
+type UInt32 =  record { 
+  value : @u32
+}
+
+type UInt64 =  record { 
+  value : @u64
+}
+
+type Float32 =  record { 
+  value : @f32
+}
+
+type Float64 =  record { 
+  value : @f64
+}
+
+type Int =  record { 
+  value : @isize 
+}
+
+type UInt =  record { 
+  value : @usize 
+}
+
+def builtin @llvm_ir(@str) : Unit
+def builtin @asm(@str) : Unit
 
 def builtin @typeof[T](x : T) => T
 
 def the(T : Type, x : T) : T => x
 
-def id[T: Type](x : T) : T => x
+def id[T : Type](x : T) : T => x
 
 type Void
 

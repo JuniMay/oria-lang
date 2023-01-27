@@ -21,7 +21,7 @@ fn main() -> std::io::Result<()> {
         .short('e')
         .long("emit")
         .default_value("ir")
-        .help("Emit ast | mir | ir")
+        .help("Emit ast | mir | ir | type")
         .action(ArgAction::Set),
     )
     .arg(
@@ -86,7 +86,7 @@ fn main() -> std::io::Result<()> {
       let mut mir_codegen_ctx = MirCodegenContext::new();
       let mir_module =
         mir_codegen_ctx.from_ast_compunit(module_name, &ast_compunit);
-      write!(output_file, "{}", mir_module.as_ref().borrow())?;
+      write!(output_file, "{}", mir_module.borrow())?;
     }
     "ir" => {
       let mut mir_codegen_ctx = MirCodegenContext::new();
@@ -107,6 +107,14 @@ fn main() -> std::io::Result<()> {
           std::io::ErrorKind::InvalidInput,
           format!("Codegen error: {:?}", codegen_result),
         ));
+      }
+    }
+    "type" => {
+      let mut mir_codegen_ctx = MirCodegenContext::new();
+      let _mir_module =
+        mir_codegen_ctx.from_ast_compunit(module_name, &ast_compunit);
+      for (lhs, rhs) in mir_codegen_ctx.constraints {
+        write!(output_file, "({}, {})\n", lhs.borrow(), rhs.borrow())?;
       }
     }
     _ => {

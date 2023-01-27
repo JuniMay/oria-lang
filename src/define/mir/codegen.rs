@@ -32,14 +32,6 @@ impl MirCodegenContext {
     }
   }
 
-  pub(super) fn add_constraint(
-    &mut self,
-    target: Ptr<Value>,
-    source: Ptr<Value>,
-  ) {
-    self.constraints.push((target, source));
-  }
-
   /// Fetch a block label.
   /// This will increase the counter of block labels.
   pub(super) fn fetch_block_label(&mut self) -> String {
@@ -295,7 +287,7 @@ impl MirCodegenContext {
             mir_param
           })
           .collect::<Vec<_>>();
-        let mut mir_block = if let Some(ast_expr) = &ast_func.expr {
+        let mir_block = if let Some(ast_expr) = &ast_func.expr {
           Some(match &ast_expr.kind {
             ast::ExprKind::Block(block) => {
               let block =
@@ -336,19 +328,7 @@ impl MirCodegenContext {
           Value::mk_var(self)
         };
 
-        if !builtin {
-          let constraint = (
-            mir_ret_ty.clone(),
-            mir_block
-              .as_mut()
-              .unwrap()
-              .fetch_type(mir_func_symbol_table.clone(), self),
-          );
-
-          self.add_constraint(constraint.0, constraint.1)
-        }
-
-        let mir_func = Fn::new(
+        let mut mir_func = Fn::new(
           mir_func_name.clone(),
           mir_params,
           mir_ret_ty,
@@ -356,6 +336,12 @@ impl MirCodegenContext {
           mir_func_symbol_table.clone(),
           self.namespaces.clone(),
         );
+
+        if !builtin {
+          let _checked_type =
+            (&mut mir_func).fetch_type(symbol_table.clone(), self);
+        }
+
         let _symbol = symbol_table.borrow_mut().register_def(builtin, mir_func);
       }
       AstItemKind::Module(ast_module) => {
@@ -416,9 +402,5 @@ impl MirCodegenContext {
     self.pop_namespace();
 
     return mir_module;
-  }
-
-  pub fn solve_constraints(self) {
-    todo!()
   }
 }

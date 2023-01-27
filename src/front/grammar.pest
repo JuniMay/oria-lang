@@ -1,5 +1,5 @@
 
-WHITESPACE = _{ " " | "\t" | NEWLINE | ("#" ~ (!NEWLINE ~ ANY)*) }
+WHITESPACE = _{ " " | "\t" | NEWLINE | ("#" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
 
 CompUnit = { SOI ~ Item* ~ EOI }
 
@@ -68,6 +68,7 @@ FnTyParam = { (Ident ~ ":")? ~ QualifiedExpr }
 
 QualifiedExpr = { QualifiedPath }
 
+// FIXME: Disambiguate function call(expr as args) with constructors in pattern(pattern as args).
 QualifiedPath = { AtomicExpr ~ ("::" ~ AtomicExpr)* }
 
 AtomicExpr = { PrimaryExpr ~ FnArgs* }
@@ -131,13 +132,13 @@ Pattern = { "|"? ~ PrimaryPattern ~ ("|" ~ PrimaryPattern)* }
 PrimaryPattern = { RangePattern | PatternWithoutRange }
 
 PatternWithoutRange = { LiteralPattern
-                      | IdentPattern
                       | WildcardPattern
                       | RestPattern
+                      | IdentPattern
+                      | QualifiedPattern
                       | RecordPattern 
                       | ConstructorPattern
                       | TuplePattern
-                      | QualifiedPattern
                       | "(" ~ Pattern ~ ")"
                       }
 
@@ -172,7 +173,7 @@ RangePatternTo = { ".." ~ RangePatternBound }
 RangePatternToInclusive = { "..=" ~ RangePatternBound }
 
 ConstructorPattern = { QualifiedPath ~ ConstructorPatternArgsImplicit? ~ ConstructorPatternArgsExplicit? }
-ConstructorPatternArgsImplicit = { "<" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ">" }
+ConstructorPatternArgsImplicit = { "[" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ "]" }
 ConstructorPatternArgsExplicit = { "(" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ")" }
 ConstructorPatternArg = { (Ident ~ "=")? ~ Pattern }
 
