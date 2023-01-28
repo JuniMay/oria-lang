@@ -51,7 +51,7 @@ Def = { "def" ~ DefSpec? ~ Ident ~ FnLhs ~ ("=>" ~ Expr)? }
 
 DefSpec = { "builtin" }
 
-Expr = {  Return | Break | Continue | Assign | OpExpr | FnExpr }
+Expr = {  Return | Break | Continue | FnExpr | Assign | OpExpr }
 
 OpExpr = { PrefixOp* ~ ApplyExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ ApplyExpr ~ PostfixOp*)* }
 
@@ -265,7 +265,7 @@ InfixOp = _{ Add
            | Mul 
            | Div 
            | Rem 
-           | Dot
+           | Dot // TODO: Make `Dot` a `QualifiedPath`-like expression.
            | Shl
            | Shr
            | LogicalAnd 

@@ -42,6 +42,8 @@ pub enum BinOp {
   And,
   /// Logical or
   Or,
+  /// Dot
+  Dot,
 }
 
 /// Unary operators

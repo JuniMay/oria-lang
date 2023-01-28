@@ -2,20 +2,23 @@ type Bool =
   | False
   | True
 
-module nat {
-  type Nat =
-    | Zero
-    | Succ(Nat)
-}
+type Nat =
+  | Zero
+  | Succ(Nat)
 
 impl Nat {
   def is_zero(self : Nat) : Bool => match self {
-    nat::Nat::Zero => return True,
-    nat::Nat::Succ(_) => return False
+    Nat::Zero => return True,
+    Nat::Succ(_) => return False
   }
 
   def is_succ(self : Nat) : Bool => match self {
-    self::nat::Nat::Zero => return False,
-    self::nat::Nat::Succ(_) => return True
+    self()::Nat::Zero => return False,
+    self()::Nat::Succ(_) => return True
+  }
+
+  def add(self : Nat, other : Nat) : Nat => match self {
+    Nat::Zero => return other,
+    Nat::Succ(prev) => return Nat::Succ(prev.add(other))
   }
 }

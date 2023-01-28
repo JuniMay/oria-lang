@@ -200,7 +200,8 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
         | Op::prefix(Rule::Ref)
         | Op::prefix(Rule::Deref),
     )
-    .op(Op::postfix(Rule::RangeFrom));
+    .op(Op::postfix(Rule::RangeFrom))
+    .op(Op::infix(Rule::Dot, Left));
 
   let mut parser = pratt
     .map_primary(handle_apply_expr)
@@ -244,6 +245,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
       Rule::Rem => Expr::mk_binary(BinOp::Rem, lhs, rhs),
       Rule::Shl => Expr::mk_binary(BinOp::Shl, lhs, rhs),
       Rule::Shr => Expr::mk_binary(BinOp::Shr, lhs, rhs),
+      Rule::Dot => Expr::mk_binary(BinOp::Dot, lhs, rhs),
       _ => unreachable!(),
     });
 

@@ -1,0 +1,36 @@
+
+def replace[
+  T : Type, a : T, b : T
+](
+  prf : Equal(a, b), P : (T) -> Type, p : P(a)
+) : P(b) => p
+
+def equal_map[
+  T : Type, U : Type, a : T, b : T
+](
+  p : Equal(a, b), f : (T) -> U
+) : Equal(f(a), f(b)) => replace(
+  p,
+  (x) => Equal(f(a), f(x)),
+  Refl
+)
+
+def equal_sym[
+  T : Type, a : T, b : T
+](
+  equal: Equal(a, b)
+) : Equal(b, a) => replace(
+  equal, 
+  (x) => Equal(x, a), 
+  Refl
+)
+
+def equal_trans[
+  T : Type, a : T, b : T, c : T
+](
+  a_eq_b : Equal(a, b), b_eq_c : Equal(b, c)
+) : Equal(a, c) => replace(
+  b_eq_c,
+  (x) => Equal(a, x),
+  a_eq_b
+)
