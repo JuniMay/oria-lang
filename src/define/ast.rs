@@ -2,7 +2,7 @@ use super::{Radix, Span};
 use pest;
 
 /// Binary operators
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum BinOp {
   /// Shift left
   Shl,
@@ -45,7 +45,7 @@ pub enum BinOp {
 }
 
 /// Unary operators
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum UnaryOp {
   /// Positive
   Pos,
@@ -61,7 +61,7 @@ pub enum UnaryOp {
   Deref,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RangeKind {
   /// a..b
   Exclusive,
@@ -77,7 +77,7 @@ pub enum RangeKind {
   Full,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FnArg {
   pub name: Option<String>,
   pub expr: Expr,
@@ -94,7 +94,7 @@ impl FnArg {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FnParam {
   pub name: Option<String>,
   pub ty: Option<Expr>,
@@ -107,13 +107,13 @@ impl FnParam {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum LitKind {
   Integer,
   Floating,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum LitSuffix {
   I8,
   I16,
@@ -129,7 +129,7 @@ pub enum LitSuffix {
   USize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Lit {
   pub kind: LitKind,
   pub radix: Radix,
@@ -137,7 +137,7 @@ pub struct Lit {
   pub text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Fn {
   pub name: Option<String>,
   /// Parameters
@@ -165,10 +165,24 @@ impl Fn {
   }
 }
 
-pub type QualifiedPath = Vec<Expr>;
+#[derive(Debug)]
+pub struct QualifiedPath {
+  pub from: Option<Box<Expr>>,
+  pub to: Box<Expr>,
+}
+
+impl QualifiedPath {
+  pub fn new(from: Option<Expr>, to: Expr) -> QualifiedPath {
+    QualifiedPath {
+      from: from.map(Box::new),
+      to: Box::new(to),
+    }
+  }
+}
+
 pub type Label = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Block {
   pub label: Option<Label>,
   pub stmts: Vec<Stmt>,
@@ -185,7 +199,7 @@ impl Block {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct IfLet {
   pub pat: Pat,
   pub expr: Box<Expr>,
@@ -204,7 +218,7 @@ impl IfLet {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MatchArm {
   pub pat: Pat,
   pub expr: Expr,
@@ -216,7 +230,7 @@ impl MatchArm {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ExprKind {
   /// `Type`
   Universe,
@@ -268,7 +282,7 @@ pub enum ExprKind {
   Match(Box<Expr>, Vec<MatchArm>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Expr {
   pub kind: ExprKind,
   pub span: Span,
@@ -449,7 +463,7 @@ impl Expr {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum IdentPatSpec {
   Comptime,
   Ref,
@@ -458,19 +472,19 @@ pub enum IdentPatSpec {
   None,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RecordPatElem {
   Field(String, Pat),
   Rest,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RangePatBound {
   Lit(Lit),
   QualifiedPath(QualifiedPath),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ConstructorPatArg {
   pub name: Option<String>,
   pub pat: Pat,
@@ -487,7 +501,7 @@ impl ConstructorPatArg {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RangePatKind {
   /// a..b
   Exclusive,
@@ -501,7 +515,7 @@ pub enum RangePatKind {
   ToInclusive,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum PatKind {
   Lit(Lit),
   Wildcard,
@@ -515,7 +529,7 @@ pub enum PatKind {
   Or(Vec<Pat>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Pat {
   pub kind: PatKind,
   pub span: Span,
@@ -604,7 +618,7 @@ impl Pat {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Let {
   pub pat: Pat,
   pub ty: Option<Expr>,
@@ -617,14 +631,14 @@ impl Let {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum StmtKind {
   Let(Let),
   Item(Item),
   Expr(Expr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Stmt {
   pub kind: StmtKind,
   pub span: Span,
@@ -657,7 +671,7 @@ impl Stmt {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct UseTree {
   pub name: String,
   pub alias: Option<String>,
@@ -681,7 +695,7 @@ impl UseTree {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Def {
   pub builtin: bool,
   pub body: Fn,
@@ -693,7 +707,7 @@ impl Def {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Const {
   pub name: String,
   pub ty: Expr,
@@ -706,7 +720,7 @@ impl Const {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Module {
   pub name: String,
   pub items: Vec<Item>,
@@ -718,7 +732,7 @@ impl Module {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum TypeBody {
   Record(Vec<(String, Expr)>),
   Interface(Vec<Item>),
@@ -726,7 +740,7 @@ pub enum TypeBody {
   Constructors(Vec<(String, Option<Fn>)>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Type {
   pub builtin: bool,
   pub name: String,
@@ -750,7 +764,7 @@ impl Type {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ItemKind {
   Use(UseTree),
   Import(String),
@@ -761,7 +775,7 @@ pub enum ItemKind {
   Module(Module),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Item {
   pub kind: ItemKind,
   pub span: Span,
@@ -822,7 +836,7 @@ impl Item {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CompUnit {
   pub items: Vec<Item>,
   pub span: Span,

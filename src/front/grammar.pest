@@ -31,7 +31,7 @@ UseTreeAlias = { Ident ~ "as" ~ Ident }
 UseTreeMulti = { Ident ~ "::" ~ "{" ~ UseTree ~ ("," ~ UseTree)* ~ "}" }
 UseTreeSimple = { Ident ~ "::" ~ UseTree }
 
-Const = { "const" ~ Ident ~ ":" ~ QualifiedExpr ~ "=" ~ Expr }
+Const = { "const" ~ Ident ~ ":" ~ ApplyExpr ~ "=" ~ Expr }
 
 Type = { "type" ~ TypeSpec? ~ Ident ~ FnLhs? ~ ("=" ~ TypeBody)? }
 TypeBody = { Record | Interface | Expr | Constructors }
@@ -41,11 +41,11 @@ Record = { "record" ~ "{" ~ (RecordField ~ ("," ~ RecordField)*)? ~ "}" }
 RecordField = { Ident ~ ":" ~ Expr }
 
 Constructors = { "|" ~ Constructor ~ ("|" ~ Constructor)* }
-Constructor = { Ident ~ FnLhs? }
+Constructor = { Ident ~ FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ (":" ~ ApplyExpr)? }
 
 Interface = { "interface" ~ "{" ~ Def* ~ "}" }
 
-Impl = { "impl" ~ AtomicExpr ~ "{" ~ Def* ~ "}" }
+Impl = { "impl" ~ ApplyExpr ~ "{" ~ Def* ~ "}" }
 
 Def = { "def" ~ DefSpec? ~ Ident ~ FnLhs ~ ("=>" ~ Expr)? }
 
@@ -53,26 +53,21 @@ DefSpec = { "builtin" }
 
 Expr = {  Return | Break | Continue | Assign | OpExpr | FnExpr }
 
-OpExpr = { PrefixOp* ~ QualifiedExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ QualifiedExpr ~ PostfixOp*)* }
+OpExpr = { PrefixOp* ~ ApplyExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ ApplyExpr ~ PostfixOp*)* }
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
-FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ QualifiedExpr)? }
+FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ ApplyExpr)? }
 FnParamsImplicit = { "[" ~ (FnParam ~ ("," ~ FnParam)*)? ~ "]" }
 FnParamsExplicit = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
-FnParam = { Ident ~ (":" ~ QualifiedExpr)? }
+FnParam = { Ident ~ (":" ~ ApplyExpr)? }
 
-FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ QualifiedExpr }
+FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ ApplyExpr }
 FnTyParamsImplicit = { "[" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ "]" }
 FnTyParamsExplicit = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
-FnTyParam = { (Ident ~ ":")? ~ QualifiedExpr }
+FnTyParam = { (Ident ~ ":")? ~ ApplyExpr }
 
-QualifiedExpr = { QualifiedPath }
-
-// FIXME: Disambiguate function call(expr as args) with constructors in pattern(pattern as args).
-QualifiedPath = { AtomicExpr ~ ("::" ~ AtomicExpr)* }
-
-AtomicExpr = { PrimaryExpr ~ FnArgs* }
-
+ApplyExpr = { QualifiedPath ~ FnArgs* }
+QualifiedPath = { (PrimaryExpr ~ FnArgs* ~ "::")* ~ PrimaryExpr }
 FnArgs = { FnArgsExplicit | FnArgsImplicit }
 FnArgsExplicit = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
 FnArgsImplicit = { "[" ~ (FnArg ~ ("," ~ FnArg)*)? ~ "]" }
@@ -122,7 +117,7 @@ Label = ${ "'" ~ Ident }
 
 Stmt = { Let | Item | Expr }
 
-Let = { "let" ~ PatternWithoutRange ~ (":" ~ QualifiedExpr)? ~ ("=" ~ Expr)? }
+Let = { "let" ~ PatternWithoutRange ~ (":" ~ ApplyExpr)? ~ ("=" ~ Expr)? }
 
 Match = { "match" ~ Expr ~ "{" ~ MatchArm ~ ("," ~ MatchArm)* ~ "}" }
 MatchArm = { Pattern ~ "=>" ~ Expr }
@@ -131,13 +126,13 @@ Pattern = { "|"? ~ PrimaryPattern ~ ("|" ~ PrimaryPattern)* }
 
 PrimaryPattern = { RangePattern | PatternWithoutRange }
 
-PatternWithoutRange = { LiteralPattern
-                      | WildcardPattern
+PatternWithoutRange = { WildcardPattern
                       | RestPattern
-                      | IdentPattern
-                      | QualifiedPattern
+                      | LiteralPattern
                       | RecordPattern 
                       | ConstructorPattern
+                      | QualifiedPattern
+                      | IdentPattern
                       | TuplePattern
                       | "(" ~ Pattern ~ ")"
                       }
@@ -172,7 +167,10 @@ RangePatternFrom = { RangePatternBound ~ ".." }
 RangePatternTo = { ".." ~ RangePatternBound }
 RangePatternToInclusive = { "..=" ~ RangePatternBound }
 
-ConstructorPattern = { QualifiedPath ~ ConstructorPatternArgsImplicit? ~ ConstructorPatternArgsExplicit? }
+ConstructorPattern = { QualifiedPath ~ ConstructorPatternArgsExplicit
+                     | QualifiedPath ~ ConstructorPatternArgsImplicit 
+                     | QualifiedPath ~ ConstructorPatternArgsImplicit ~ ConstructorPatternArgsExplicit 
+                     }
 ConstructorPatternArgsImplicit = { "[" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ "]" }
 ConstructorPatternArgsExplicit = { "(" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ")" }
 ConstructorPatternArg = { (Ident ~ "=")? ~ Pattern }

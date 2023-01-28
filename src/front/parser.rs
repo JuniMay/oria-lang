@@ -123,8 +123,8 @@ fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
       Rule::FnParamsExplicit => {
         params.extend(handle_fn_params(pair, false));
       }
-      Rule::QualifiedExpr => {
-        ret_ty = Some(handle_qualified_expr(pair));
+      Rule::ApplyExpr => {
+        ret_ty = Some(handle_apply_expr(pair));
       }
       _ => unreachable!(),
     }
@@ -147,7 +147,7 @@ fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     for pair in pairs {
       match pair.as_rule() {
         Rule::Ident => name = Some(pair.as_str().to_string()),
-        Rule::QualifiedExpr => ty = Some(handle_qualified_expr(pair)),
+        Rule::ApplyExpr => ty = Some(handle_apply_expr(pair)),
         _ => unreachable!(),
       }
     }
@@ -203,7 +203,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
     .op(Op::postfix(Rule::RangeFrom));
 
   let mut parser = pratt
-    .map_primary(handle_qualified_expr)
+    .map_primary(handle_apply_expr)
     .map_prefix(|op, expr| match op.as_rule() {
       Rule::RangeTo => Expr::mk_range(RangeKind::To, None, Some(expr)),
       Rule::RangeToInclusive => {
@@ -253,31 +253,53 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
   return expr;
 }
 
-fn handle_qualified_expr(pair: Pair<Rule>) -> Expr {
-  let path = handle_qualified_path(pair.into_inner().next().unwrap());
-  let expr = if path.len() == 1 {
-    path[0].clone()
+fn handle_apply_expr(pair: Pair<Rule>) -> Expr {
+  let mut pairs = pair.into_inner();
+  let path = handle_qualified_path(pairs.next().unwrap());
+  let mut expr = if path.from.is_none() {
+    *path.to
   } else {
     Expr::mk_qualified_path(path)
   };
+  for pair in pairs {
+    if let Rule::FnArgs = pair.as_rule() {
+      let args = handle_fn_args(pair);
+      expr = Expr::mk_apply(expr, args);
+    }
+  }
   return expr;
 }
 
 fn handle_qualified_path(pair: Pair<Rule>) -> QualifiedPath {
-  pair.into_inner().map(handle_atomic_expr).collect()
-}
-
-fn handle_atomic_expr(pair: Pair<Rule>) -> Expr {
-  let span = pair.as_span();
   let mut pairs = pair.into_inner();
-  let mut expr = handle_primary_expr(pairs.next().unwrap());
-  for pair in pairs {
-    if let Rule::FnArgs = pair.as_rule() {
-      expr = Expr::mk_apply(expr, handle_fn_args(pair));
+  let mut expr = None;
+  let mut path = None;
+
+  loop {
+    let maybe_pair = pairs.next();
+    if let Some(pair) = maybe_pair {
+      if let Rule::PrimaryExpr = pair.as_rule() {
+        let primary_expr = handle_primary_expr(pair);
+        path = Some(QualifiedPath::new(expr, primary_expr));
+        expr = None;
+        if let Some(pair) = pairs.peek() {
+          if let Rule::FnArgs = pair.as_rule() {
+            expr = Some(Expr::mk_qualified_path(path.unwrap()));
+            path = None;
+            let fn_args = handle_fn_args(pair);
+            expr = Some(Expr::mk_apply(expr.unwrap(), fn_args));
+          } else {
+            expr = Some(Expr::mk_qualified_path(path.unwrap()));
+            path = None;
+          }
+        } else {
+        }
+      }
+    } else {
+      break;
     }
   }
-  expr.set_span(span);
-  return expr;
+  return path.unwrap();
 }
 
 fn handle_primary_expr(pair: Pair<Rule>) -> Expr {
@@ -504,8 +526,8 @@ fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
       Rule::FnTyParamsExplicit => {
         params.extend(handle_fn_ty_params(pair, false));
       }
-      Rule::QualifiedExpr => {
-        ret_ty = Some(handle_qualified_expr(pair));
+      Rule::ApplyExpr => {
+        ret_ty = Some(handle_apply_expr(pair));
       }
       _ => unreachable!(),
     }
@@ -529,7 +551,7 @@ fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     for pair in pairs {
       match pair.as_rule() {
         Rule::Ident => name = Some(pair.as_str().to_string()),
-        Rule::QualifiedExpr => ty = Some(handle_qualified_expr(pair)),
+        Rule::ApplyExpr => ty = Some(handle_apply_expr(pair)),
         _ => unreachable!(),
       }
     }
@@ -783,8 +805,8 @@ fn handle_let(pair: Pair<Rule>) -> Stmt {
   let mut ty = None;
   for pair in pairs {
     match pair.as_rule() {
-      Rule::QualifiedExpr => {
-        ty = Some(handle_qualified_expr(pair));
+      Rule::ApplyExpr => {
+        ty = Some(handle_apply_expr(pair));
       }
       Rule::Expr => {
         init = Some(handle_expr(pair));
@@ -882,7 +904,7 @@ fn handle_import(pair: Pair<Rule>) -> Item {
 fn handle_const(pair: Pair<Rule>) -> Item {
   let mut pairs = pair.into_inner();
   let name = pairs.next().unwrap().as_str().to_string();
-  let ty = handle_qualified_expr(pairs.next().unwrap());
+  let ty = handle_apply_expr(pairs.next().unwrap());
   let init = handle_expr(pairs.next().unwrap());
   return Item::mk_const(Const::new(name, ty, init));
 }
@@ -924,13 +946,24 @@ fn handle_constructors(pair: Pair<Rule>) -> TypeBody {
     .map(|pair| {
       let mut pairs = pair.into_inner();
       let name = pairs.next().unwrap().as_str().to_string();
-      let maybe_pair = pairs.next();
-      let func = if let Some(pair) = maybe_pair {
-        Some(handle_fn_lhs(pair))
-      } else {
-        None
-      };
-      (name, func)
+      let mut params = Vec::new();
+      let mut ret_ty = None;
+      for pair in pairs {
+        match pair.as_rule() {
+          Rule::FnTyParamsImplicit => {
+            params.append(&mut handle_fn_ty_params(pair, true));
+          }
+          Rule::FnTyParamsExplicit => {
+            params.append(&mut handle_fn_ty_params(pair, false));
+          }
+          Rule::ApplyExpr => {
+            ret_ty = Some(handle_apply_expr(pair));
+          }
+          _ => unreachable!(),
+        }
+      }
+      let func = Fn::new(Some(name.clone()), params, ret_ty, None);
+      (name, Some(func))
     })
     .collect();
   return TypeBody::Constructors(constructors);
@@ -957,7 +990,7 @@ fn handle_record(pair: Pair<Rule>) -> TypeBody {
 
 fn hanlde_impl(pair: Pair<Rule>) -> Item {
   let mut pairs = pair.into_inner();
-  let expr = handle_atomic_expr(pairs.next().unwrap());
+  let expr = handle_apply_expr(pairs.next().unwrap());
   let items = pairs.map(handle_def).collect();
   return Item::mk_impl(expr, items);
 }
