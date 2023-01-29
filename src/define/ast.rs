@@ -42,8 +42,8 @@ pub enum BinOp {
   And,
   /// Logical or
   Or,
-  /// Dot
-  Dot,
+  /// Path `===`
+  Path,
 }
 
 /// Unary operators
@@ -167,21 +167,6 @@ impl Fn {
   }
 }
 
-#[derive(Debug)]
-pub struct QualifiedPath {
-  pub from: Option<Box<Expr>>,
-  pub to: Box<Expr>,
-}
-
-impl QualifiedPath {
-  pub fn new(from: Option<Expr>, to: Expr) -> QualifiedPath {
-    QualifiedPath {
-      from: from.map(Box::new),
-      to: Box::new(to),
-    }
-  }
-}
-
 pub type Label = String;
 
 #[derive(Debug)]
@@ -249,7 +234,9 @@ pub enum ExprKind {
   /// Unary expression.
   Unary(UnaryOp, Box<Expr>),
   /// Qualified path of namespaces.
-  QualifiedPath(QualifiedPath),
+  Qualify(Box<Expr>, Box<Expr>),
+  /// Access by dot
+  Access(Box<Expr>, Box<Expr>),
   /// Application.
   Apply(Box<Expr>, Vec<FnArg>),
   /// Tuple.
@@ -260,11 +247,9 @@ pub enum ExprKind {
   Fn(Fn),
   /// Return
   Return(Option<Box<Expr>>),
-  /// Break
-  /// Break expression can have optional label and expression(value).
+  /// Break expression with optional label and expression(value).
   Break(Option<Label>, Option<Box<Expr>>),
-  /// Continue
-  /// Continue exprssion can have optional label.
+  /// Continue exprssion with optional label.
   Continue(Option<Label>),
   /// Assignment
   Assign(Box<Expr>, Box<Expr>),
@@ -282,6 +267,8 @@ pub enum ExprKind {
   IfLet(IfLet),
   /// Match
   Match(Box<Expr>, Vec<MatchArm>),
+  /// Record Initialization
+  Record(Box<Expr>, Vec<(String, Expr)>),
 }
 
 #[derive(Debug)]
@@ -320,9 +307,16 @@ impl Expr {
     }
   }
 
-  pub fn mk_qualified_path(path: QualifiedPath) -> Self {
+  pub fn mk_qualify_expr(from: Expr, to: Expr) -> Self {
     Self {
-      kind: ExprKind::QualifiedPath(path),
+      kind: ExprKind::Qualify(Box::new(from), Box::new(to)),
+      span: Span::default(),
+    }
+  }
+
+  pub fn mk_access(from: Expr, to: Expr) -> Self {
+    Self {
+      kind: ExprKind::Access(Box::new(from), Box::new(to)),
       span: Span::default(),
     }
   }
@@ -463,6 +457,13 @@ impl Expr {
       span: Span::default(),
     }
   }
+
+  pub fn mk_record(qualified: Expr, fields: Vec<(String, Expr)>) -> Self {
+    Self {
+      kind: ExprKind::Record(Box::new(qualified), fields),
+      span: Span::default(),
+    }
+  }
 }
 
 #[derive(Debug)]
@@ -483,7 +484,7 @@ pub enum RecordPatElem {
 #[derive(Debug)]
 pub enum RangePatBound {
   Lit(Lit),
-  QualifiedPath(QualifiedPath),
+  Qualify(Box<Expr>),
 }
 
 #[derive(Debug)]
@@ -523,10 +524,10 @@ pub enum PatKind {
   Wildcard,
   Rest,
   Ident(IdentPatSpec, String),
-  Record(QualifiedPath, Vec<RecordPatElem>),
-  Constructor(QualifiedPath, Vec<ConstructorPatArg>),
+  Record(Box<Expr>, Vec<RecordPatElem>),
+  Constructor(Box<Expr>, Vec<ConstructorPatArg>),
   Tuple(Vec<Pat>),
-  QualifiedPath(QualifiedPath),
+  Qualify(Box<Expr>),
   Range(RangePatKind, Option<RangePatBound>, Option<RangePatBound>),
   Or(Vec<Pat>),
 }
@@ -570,9 +571,9 @@ impl Pat {
     }
   }
 
-  pub fn mk_record(path: QualifiedPath, elems: Vec<RecordPatElem>) -> Self {
+  pub fn mk_record(qualified: Expr, elems: Vec<RecordPatElem>) -> Self {
     Self {
-      kind: PatKind::Record(path, elems),
+      kind: PatKind::Record(Box::new(qualified), elems),
       span: Span::default(),
     }
   }
@@ -584,9 +585,9 @@ impl Pat {
     }
   }
 
-  pub fn mk_qualified(path: QualifiedPath) -> Self {
+  pub fn mk_qualify(qualified: Expr) -> Self {
     Self {
-      kind: PatKind::QualifiedPath(path),
+      kind: PatKind::Qualify(Box::new(qualified)),
       span: Span::default(),
     }
   }
@@ -610,11 +611,11 @@ impl Pat {
   }
 
   pub fn mk_constructor(
-    path: QualifiedPath,
+    qualified: Expr,
     args: Vec<ConstructorPatArg>,
   ) -> Self {
     Self {
-      kind: PatKind::Constructor(path, args),
+      kind: PatKind::Constructor(Box::new(qualified), args),
       span: Span::default(),
     }
   }

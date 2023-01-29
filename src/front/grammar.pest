@@ -31,7 +31,7 @@ UseTreeAlias = { Ident ~ "as" ~ Ident }
 UseTreeMulti = { Ident ~ "::" ~ "{" ~ UseTree ~ ("," ~ UseTree)* ~ "}" }
 UseTreeSimple = { Ident ~ "::" ~ UseTree }
 
-Const = { "const" ~ Ident ~ ":" ~ ApplyExpr ~ "=" ~ Expr }
+Const = { "const" ~ Ident ~ ":" ~ AccessExpr ~ "=" ~ Expr }
 
 Type = { "type" ~ TypeSpec? ~ Ident ~ FnLhs? ~ ("=" ~ TypeBody)? }
 TypeBody = { Record | Interface | Expr | Constructors }
@@ -41,11 +41,11 @@ Record = { "record" ~ "{" ~ (RecordField ~ ("," ~ RecordField)*)? ~ "}" }
 RecordField = { Ident ~ ":" ~ Expr }
 
 Constructors = { "|" ~ Constructor ~ ("|" ~ Constructor)* }
-Constructor = { Ident ~ FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ (":" ~ ApplyExpr)? }
+Constructor = { Ident ~ FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ (":" ~ AccessExpr)? }
 
 Interface = { "interface" ~ "{" ~ Def* ~ "}" }
 
-Impl = { "impl" ~ ApplyExpr ~ "{" ~ Def* ~ "}" }
+Impl = { "impl" ~ QualifyExpr ~ "{" ~ Def* ~ "}" }
 
 Def = { "def" ~ DefSpec? ~ Ident ~ FnLhs ~ ("=>" ~ Expr)? }
 
@@ -53,38 +53,47 @@ DefSpec = { "builtin" }
 
 Expr = {  Return | Break | Continue | FnExpr | Assign | OpExpr }
 
-OpExpr = { PrefixOp* ~ ApplyExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ ApplyExpr ~ PostfixOp*)* }
+OpExpr = { PrefixOp* ~ AccessExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ AccessExpr ~ PostfixOp*)* }
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
-FnLhs = { FnParamsImplicit? ~ FnParamsExplicit? ~ (":" ~ ApplyExpr)? }
+FnLhs = { FnParamsImplicit ~ FnParamsExplicit ~ (":" ~ OpExpr)? 
+        | FnParamsImplicit ~ (":" ~ OpExpr)? 
+        | FnParamsExplicit ~ (":" ~ OpExpr)? 
+        }
 FnParamsImplicit = { "[" ~ (FnParam ~ ("," ~ FnParam)*)? ~ "]" }
 FnParamsExplicit = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
-FnParam = { Ident ~ (":" ~ ApplyExpr)? }
+FnParam = { Ident ~ (":" ~ OpExpr)? }
 
-FnTy = { FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ "->" ~ ApplyExpr }
+FnTy = { FnTyParamsImplicit ~ FnTyParamsExplicit ~ "->" ~ OpExpr 
+       | FnTyParamsImplicit ~ "->" ~ OpExpr 
+       | FnTyParamsExplicit ~ "->" ~ OpExpr 
+       }
 FnTyParamsImplicit = { "[" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ "]" }
 FnTyParamsExplicit = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
-FnTyParam = { (Ident ~ ":")? ~ ApplyExpr }
+FnTyParam = { (Ident ~ ":")? ~ OpExpr }
 
-ApplyExpr = { QualifiedPath ~ FnArgs* }
-QualifiedPath = { (PrimaryExpr ~ FnArgs* ~ "::")* ~ PrimaryExpr }
-FnArgs = { FnArgsExplicit | FnArgsImplicit }
-FnArgsExplicit = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
-FnArgsImplicit = { "[" ~ (FnArg ~ ("," ~ FnArg)*)? ~ "]" }
-FnArg = { (Ident ~ "=")? ~ Expr }
-
-Tuple = { "(" ~ Expr ~ ("," ~ Expr)+ ~ ")" }
+AccessExpr = { (PrimaryExpr ~ FnArgs* ~ ".")* ~ PrimaryExpr ~ FnArgs* }
 
 PrimaryExpr = { Universe
               | Unit
               | Literal
               | ExprWithBlock
+              | QualifyExpr
               | Ident
               | RangeFull
               | FnTy 
               | Tuple
               | "(" ~ Expr ~ ")"
               }
+
+QualifyExpr = { (Ident ~ FnArgs* ~ "::")* ~ Ident }
+
+FnArgs = { FnArgsExplicit | FnArgsImplicit }
+FnArgsExplicit = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
+FnArgsImplicit = { "[" ~ (FnArg ~ ("," ~ FnArg)*)? ~ "]" }
+FnArg = { (Ident ~ "=")? ~ Expr }
+
+Tuple = { "(" ~ Expr ~ ("," ~ Expr)+ ~ ")" }
 
 ExprWithBlock = { Loop 
                 | While 
@@ -93,7 +102,11 @@ ExprWithBlock = { Loop
                 | IfLet
                 | Match
                 | Block
+                | RecordInit
                 }
+
+RecordInit = { QualifyExpr ~ "{" ~ (RecordInitField ~ ("," ~ RecordInitField)*)? ~ "}" }
+RecordInitField = { Ident ~ ":" ~ Expr }
 
 Assign = { OpExpr ~ "=" ~ Expr }
 
@@ -117,7 +130,7 @@ Label = ${ "'" ~ Ident }
 
 Stmt = { Let | Item | Expr }
 
-Let = { "let" ~ PatternWithoutRange ~ (":" ~ ApplyExpr)? ~ ("=" ~ Expr)? }
+Let = { "let" ~ PatternWithoutRange ~ (":" ~ AccessExpr)? ~ ("=" ~ Expr)? }
 
 Match = { "match" ~ Expr ~ "{" ~ MatchArm ~ ("," ~ MatchArm)* ~ "}" }
 MatchArm = { Pattern ~ "=>" ~ Expr }
@@ -131,7 +144,7 @@ PatternWithoutRange = { WildcardPattern
                       | LiteralPattern
                       | RecordPattern 
                       | ConstructorPattern
-                      | QualifiedPattern
+                      | QualifyPattern
                       | IdentPattern
                       | TuplePattern
                       | "(" ~ Pattern ~ ")"
@@ -150,7 +163,7 @@ WildcardPattern = { "_" }
 
 RestPattern = { ".." }
 
-RecordPattern = { QualifiedPath ~ "{" ~ (RecordPatternElem ~ ("," ~ RecordPatternElem)*)? ~ "}" }
+RecordPattern = { QualifyExpr ~ "{" ~ (RecordPatternElem ~ ("," ~ RecordPatternElem)*)? ~ "}" }
 RecordPatternElem = { RecordPatternField | RestPattern }
 RecordPatternField = { Ident ~ ":" ~ Pattern }
 
@@ -160,16 +173,16 @@ RangePattern = { RangePatternInclusive
                | RangePatternTo 
                | RangePatternToInclusive
                }
-RangePatternBound = { Literal | QualifiedPath }
+RangePatternBound = { Literal | QualifyExpr }
 RangePatternInclusive = { RangePatternBound ~ "..=" ~ RangePatternBound }
 RangePatternExclusive = { RangePatternBound ~ ".." ~ RangePatternBound }
 RangePatternFrom = { RangePatternBound ~ ".." }
 RangePatternTo = { ".." ~ RangePatternBound }
 RangePatternToInclusive = { "..=" ~ RangePatternBound }
 
-ConstructorPattern = { QualifiedPath ~ ConstructorPatternArgsExplicit
-                     | QualifiedPath ~ ConstructorPatternArgsImplicit 
-                     | QualifiedPath ~ ConstructorPatternArgsImplicit ~ ConstructorPatternArgsExplicit 
+ConstructorPattern = { QualifyExpr ~ ConstructorPatternArgsExplicit
+                     | QualifyExpr ~ ConstructorPatternArgsImplicit 
+                     | QualifyExpr ~ ConstructorPatternArgsImplicit ~ ConstructorPatternArgsExplicit 
                      }
 ConstructorPatternArgsImplicit = { "[" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ "]" }
 ConstructorPatternArgsExplicit = { "(" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ")" }
@@ -177,7 +190,7 @@ ConstructorPatternArg = { (Ident ~ "=")? ~ Pattern }
 
 TuplePattern = { "(" ~ Pattern ~ ("," ~ Pattern)+ ~ ")" } 
 
-QualifiedPattern = { QualifiedPath }
+QualifyPattern = { (Ident ~ FnArgs* ~ "::")+ ~ Ident }
 
 Return = { "return" ~ Expr? }
 
@@ -229,7 +242,6 @@ Sub = { "-" }
 Mul = { "*" }
 Div = { "/" }
 Rem = { "%" }
-Dot = { "." }
 Shl = { "<<" }
 Shr = { ">>" }
 
@@ -260,12 +272,13 @@ Deref = { "*" }
 LogicalNot = { "!" }
 BitwiseNot = { "~" }
 
+Path = { "===" }
+
 InfixOp = _{ Add 
            | Sub 
            | Mul 
            | Div 
            | Rem 
-           | Dot // TODO: Make `Dot` a `QualifiedPath`-like expression.
            | Shl
            | Shr
            | LogicalAnd 
@@ -273,6 +286,7 @@ InfixOp = _{ Add
            | BitwiseAnd 
            | BitwiseOr 
            | BitwiseXor 
+           | Path
            | Eq 
            | Ne 
            | Lt 

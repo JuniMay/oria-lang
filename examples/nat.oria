@@ -21,4 +21,13 @@ impl Nat {
     Nat::Zero => return other,
     Nat::Succ(prev) => return Nat::Succ(prev.add(other))
   }
+  
+  # Just testing the parser
+  def test_record_parse(self : Nat) : Nat => {
+    let x = Point { a: 1, b: 2, c: 3 }
+    match Point {a : 1, b : 2, c : 3} {
+      Point { a:x, b:y, c: z} => 1
+    }
+    return x.a
+  }
 }

@@ -123,8 +123,8 @@ fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
       Rule::FnParamsExplicit => {
         params.extend(handle_fn_params(pair, false));
       }
-      Rule::ApplyExpr => {
-        ret_ty = Some(handle_apply_expr(pair));
+      Rule::OpExpr => {
+        ret_ty = Some(handle_op_expr(pair));
       }
       _ => unreachable!(),
     }
@@ -147,7 +147,7 @@ fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     for pair in pairs {
       match pair.as_rule() {
         Rule::Ident => name = Some(pair.as_str().to_string()),
-        Rule::ApplyExpr => ty = Some(handle_apply_expr(pair)),
+        Rule::OpExpr => ty = Some(handle_op_expr(pair)),
         _ => unreachable!(),
       }
     }
@@ -198,13 +198,13 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
         | Op::prefix(Rule::LogicalNot)
         | Op::prefix(Rule::BitwiseNot)
         | Op::prefix(Rule::Ref)
-        | Op::prefix(Rule::Deref),
+        | Op::prefix(Rule::Deref)
     )
     .op(Op::postfix(Rule::RangeFrom))
-    .op(Op::infix(Rule::Dot, Left));
+    .op(Op::infix(Rule::Path, Left));
 
   let mut parser = pratt
-    .map_primary(handle_apply_expr)
+    .map_primary(handle_access_expr)
     .map_prefix(|op, expr| match op.as_rule() {
       Rule::RangeTo => Expr::mk_range(RangeKind::To, None, Some(expr)),
       Rule::RangeToInclusive => {
@@ -245,7 +245,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
       Rule::Rem => Expr::mk_binary(BinOp::Rem, lhs, rhs),
       Rule::Shl => Expr::mk_binary(BinOp::Shl, lhs, rhs),
       Rule::Shr => Expr::mk_binary(BinOp::Shr, lhs, rhs),
-      Rule::Dot => Expr::mk_binary(BinOp::Dot, lhs, rhs),
+      Rule::Path => Expr::mk_binary(BinOp::Path, lhs, rhs),
       _ => unreachable!(),
     });
 
@@ -255,53 +255,58 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
   return expr;
 }
 
-fn handle_apply_expr(pair: Pair<Rule>) -> Expr {
+fn handle_access_expr(pair: Pair<Rule>) -> Expr {
   let mut pairs = pair.into_inner();
-  let path = handle_qualified_path(pairs.next().unwrap());
-  let mut expr = if path.from.is_none() {
-    *path.to
-  } else {
-    Expr::mk_qualified_path(path)
-  };
+
+  let pair = pairs.next().unwrap();
+  let span = pair.as_span();
+  let mut expr = handle_primary_expr(pair);
+  expr.set_span(span);
+
   for pair in pairs {
-    if let Rule::FnArgs = pair.as_rule() {
-      let args = handle_fn_args(pair);
-      expr = Expr::mk_apply(expr, args);
+    let span = pair.as_span();
+    match pair.as_rule() {
+      Rule::PrimaryExpr => {
+        expr = Expr::mk_access(expr, handle_primary_expr(pair));
+      }
+      Rule::FnArgs => {
+        let args = handle_fn_args(pair);
+        expr = Expr::mk_apply(expr, args);
+      }
+      _ => unreachable!(),
     }
+    expr.set_span(span);
   }
   return expr;
 }
 
-fn handle_qualified_path(pair: Pair<Rule>) -> QualifiedPath {
+fn handle_qualify_expr(pair: Pair<Rule>) -> Expr {
   let mut pairs = pair.into_inner();
-  let mut expr = None;
-  let mut path = None;
 
-  loop {
-    let maybe_pair = pairs.next();
-    if let Some(pair) = maybe_pair {
-      if let Rule::PrimaryExpr = pair.as_rule() {
-        let primary_expr = handle_primary_expr(pair);
-        path = Some(QualifiedPath::new(expr, primary_expr));
-        expr = None;
-        if let Some(pair) = pairs.peek() {
-          if let Rule::FnArgs = pair.as_rule() {
-            expr = Some(Expr::mk_qualified_path(path.unwrap()));
-            path = None;
-            let fn_args = handle_fn_args(pair);
-            expr = Some(Expr::mk_apply(expr.unwrap(), fn_args));
-          } else {
-            expr = Some(Expr::mk_qualified_path(path.unwrap()));
-            path = None;
-          }
-        } else {
-        }
+  let pair = pairs.next().unwrap();
+  let span = pair.as_span();
+  let mut expr = Expr::mk_ident(pair.as_str().to_string());
+  expr.set_span(span);
+
+  for pair in pairs {
+    let span = pair.as_span();
+    match pair.as_rule() {
+      Rule::Ident => {
+        expr = Expr::mk_qualify_expr(
+          expr,
+          Expr::mk_ident(pair.as_str().to_string()),
+        );
       }
-    } else {
-      break;
+      Rule::FnArgs => {
+        let args = handle_fn_args(pair);
+        expr = Expr::mk_apply(expr, args);
+      }
+      _ => unreachable!(),
     }
+    expr.set_span(span);
   }
-  return path.unwrap();
+
+  return expr;
 }
 
 fn handle_primary_expr(pair: Pair<Rule>) -> Expr {
@@ -317,6 +322,7 @@ fn handle_primary_expr(pair: Pair<Rule>) -> Expr {
     Rule::FnTy => handle_fn_ty(pair),
     Rule::Tuple => handle_tuple(pair),
     Rule::Expr => handle_expr(pair),
+    Rule::QualifyExpr => handle_qualify_expr(pair),
     _ => unreachable!(),
   };
   expr.set_span(span);
@@ -387,8 +393,23 @@ fn handle_expr_with_block(pair: Pair<Rule>) -> Expr {
     Rule::IfLet => handle_if_let(pair),
     Rule::Match => handle_match(pair),
     Rule::Block => Expr::mk_block(handle_block(pair)),
+    Rule::RecordInit => handle_record_init(pair),
     _ => unreachable!(),
   }
+}
+
+fn handle_record_init(pair: Pair<Rule>) -> Expr {
+  let mut pairs = pair.into_inner();
+  let qualified = handle_qualify_expr(pairs.next().unwrap());
+  let fields = pairs
+    .map(|pair| {
+      let mut pairs = pair.into_inner();
+      let name = pairs.next().unwrap().as_str().to_string();
+      let expr = handle_expr(pairs.next().unwrap());
+      return (name, expr);
+    })
+    .collect();
+  return Expr::mk_record(qualified, fields);
 }
 
 fn handle_loop(pair: Pair<Rule>) -> Expr {
@@ -528,8 +549,8 @@ fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
       Rule::FnTyParamsExplicit => {
         params.extend(handle_fn_ty_params(pair, false));
       }
-      Rule::ApplyExpr => {
-        ret_ty = Some(handle_apply_expr(pair));
+      Rule::OpExpr => {
+        ret_ty = Some(handle_op_expr(pair));
       }
       _ => unreachable!(),
     }
@@ -553,7 +574,7 @@ fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     for pair in pairs {
       match pair.as_rule() {
         Rule::Ident => name = Some(pair.as_str().to_string()),
-        Rule::ApplyExpr => ty = Some(handle_apply_expr(pair)),
+        Rule::OpExpr => ty = Some(handle_op_expr(pair)),
         _ => unreachable!(),
       }
     }
@@ -650,8 +671,8 @@ fn handle_range_pattern_bound(pair: Pair<Rule>) -> Option<RangePatBound> {
   let pair = pair.into_inner().next().unwrap();
   match pair.as_rule() {
     Rule::Literal => Some(RangePatBound::Lit(handle_literal(pair))),
-    Rule::QualifiedPath => {
-      Some(RangePatBound::QualifiedPath(handle_qualified_path(pair)))
+    Rule::QualifyExpr => {
+      Some(RangePatBound::Qualify(Box::new(handle_qualify_expr(pair))))
     }
     _ => unreachable!(),
   }
@@ -668,9 +689,9 @@ fn handle_pattern_without_range(pair: Pair<Rule>) -> Pat {
     Rule::RestPattern => Pat::mk_rest(),
     Rule::RecordPattern => handle_record_pattern(pair),
     Rule::TuplePattern => handle_tuple_pattern(pair),
-    Rule::QualifiedPattern => Pat::mk_qualified(handle_qualified_path(
-      pair.into_inner().next().unwrap(),
-    )),
+    Rule::QualifyPattern => {
+      Pat::mk_qualify(handle_qualify_expr(pair.into_inner().next().unwrap()))
+    }
     Rule::Pattern => handle_pattern(pair),
     Rule::ConstructorPattern => handle_constructor_pattern(pair),
     _ => unreachable!(),
@@ -682,7 +703,7 @@ fn handle_pattern_without_range(pair: Pair<Rule>) -> Pat {
 
 fn handle_constructor_pattern(pair: Pair<Rule>) -> Pat {
   let mut pairs = pair.into_inner();
-  let path = handle_qualified_path(pairs.next().unwrap());
+  let qualified = handle_qualify_expr(pairs.next().unwrap());
 
   let mut args = Vec::new();
   for pair in pairs {
@@ -700,7 +721,7 @@ fn handle_constructor_pattern(pair: Pair<Rule>) -> Pat {
       _ => unreachable!(),
     }
   }
-  return Pat::mk_constructor(path, args);
+  return Pat::mk_constructor(qualified, args);
 }
 
 fn handle_constructor_pattern_arg(
@@ -729,7 +750,7 @@ fn handle_record_pattern(pair: Pair<Rule>) -> Pat {
   let mut pairs = pair.into_inner();
   let mut elems = Vec::new();
 
-  let path = handle_qualified_path(pairs.next().unwrap());
+  let qualified = handle_qualify_expr(pairs.next().unwrap());
   for pair in pairs {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
@@ -744,7 +765,7 @@ fn handle_record_pattern(pair: Pair<Rule>) -> Pat {
     }
   }
 
-  return Pat::mk_record(path, elems);
+  return Pat::mk_record(qualified, elems);
 }
 
 fn handle_literal_pattern(pair: Pair<Rule>) -> Pat {
@@ -807,8 +828,8 @@ fn handle_let(pair: Pair<Rule>) -> Stmt {
   let mut ty = None;
   for pair in pairs {
     match pair.as_rule() {
-      Rule::ApplyExpr => {
-        ty = Some(handle_apply_expr(pair));
+      Rule::AccessExpr => {
+        ty = Some(handle_access_expr(pair));
       }
       Rule::Expr => {
         init = Some(handle_expr(pair));
@@ -906,7 +927,7 @@ fn handle_import(pair: Pair<Rule>) -> Item {
 fn handle_const(pair: Pair<Rule>) -> Item {
   let mut pairs = pair.into_inner();
   let name = pairs.next().unwrap().as_str().to_string();
-  let ty = handle_apply_expr(pairs.next().unwrap());
+  let ty = handle_access_expr(pairs.next().unwrap());
   let init = handle_expr(pairs.next().unwrap());
   return Item::mk_const(Const::new(name, ty, init));
 }
@@ -958,8 +979,8 @@ fn handle_constructors(pair: Pair<Rule>) -> TypeBody {
           Rule::FnTyParamsExplicit => {
             params.append(&mut handle_fn_ty_params(pair, false));
           }
-          Rule::ApplyExpr => {
-            ret_ty = Some(handle_apply_expr(pair));
+          Rule::AccessExpr => {
+            ret_ty = Some(handle_access_expr(pair));
           }
           _ => unreachable!(),
         }
@@ -992,7 +1013,7 @@ fn handle_record(pair: Pair<Rule>) -> TypeBody {
 
 fn hanlde_impl(pair: Pair<Rule>) -> Item {
   let mut pairs = pair.into_inner();
-  let expr = handle_apply_expr(pairs.next().unwrap());
+  let expr = handle_qualify_expr(pairs.next().unwrap());
   let items = pairs.map(handle_def).collect();
   return Item::mk_impl(expr, items);
 }
