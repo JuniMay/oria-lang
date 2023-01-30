@@ -117,11 +117,8 @@ fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
   let mut ret_ty = None;
   for pair in pairs {
     match pair.as_rule() {
-      Rule::FnParamsImplicit => {
-        params.extend(handle_fn_params(pair, true));
-      }
-      Rule::FnParamsExplicit => {
-        params.extend(handle_fn_params(pair, false));
+      Rule::FnParams => {
+        params = handle_fn_params(pair);
       }
       Rule::OpExpr => {
         ret_ty = Some(handle_op_expr(pair));
@@ -133,7 +130,7 @@ fn handle_fn_lhs(pair: Pair<Rule>) -> Fn {
   return lhs;
 }
 
-fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
+fn handle_fn_params(pair: Pair<Rule>) -> Vec<FnParam> {
   let pairs = pair.into_inner();
   let mut params = Vec::new();
   for pair in pairs {
@@ -143,9 +140,11 @@ fn handle_fn_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     let mut name = None;
     // Optional type of the parameter
     let mut ty = None;
+    let mut implicit = false;
     // Traverse the `Ident?` and `QualifiedPath`
     for pair in pairs {
       match pair.as_rule() {
+        Rule::ParamSpec => implicit = true,
         Rule::Ident => name = Some(pair.as_str().to_string()),
         Rule::OpExpr => ty = Some(handle_op_expr(pair)),
         _ => unreachable!(),
@@ -198,7 +197,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
         | Op::prefix(Rule::LogicalNot)
         | Op::prefix(Rule::BitwiseNot)
         | Op::prefix(Rule::Ref)
-        | Op::prefix(Rule::Deref)
+        | Op::prefix(Rule::Deref),
     )
     .op(Op::postfix(Rule::RangeFrom))
     .op(Op::infix(Rule::Path, Left));
@@ -543,11 +542,8 @@ fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
 
   for pair in pairs {
     match pair.as_rule() {
-      Rule::FnTyParamsImplicit => {
-        params.extend(handle_fn_ty_params(pair, true));
-      }
-      Rule::FnTyParamsExplicit => {
-        params.extend(handle_fn_ty_params(pair, false));
+      Rule::FnTyParams => {
+        params = handle_fn_ty_params(pair);
       }
       Rule::OpExpr => {
         ret_ty = Some(handle_op_expr(pair));
@@ -560,7 +556,7 @@ fn handle_fn_ty(pair: Pair<Rule>) -> Expr {
   return expr;
 }
 
-fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
+fn handle_fn_ty_params(pair: Pair<Rule>) -> Vec<FnParam> {
   let pairs = pair.into_inner();
   let mut params = Vec::new();
   for pair in pairs {
@@ -570,9 +566,11 @@ fn handle_fn_ty_params(pair: Pair<Rule>, implicit: bool) -> Vec<FnParam> {
     let mut name = None;
     // Optional type of the parameter
     let mut ty = None;
+    let mut implicit = false;
     // Traverse the `Ident?` and `QualifiedPath`
     for pair in pairs {
       match pair.as_rule() {
+        Rule::ParamSpec => implicit = true,
         Rule::Ident => name = Some(pair.as_str().to_string()),
         Rule::OpExpr => ty = Some(handle_op_expr(pair)),
         _ => unreachable!(),
@@ -588,13 +586,6 @@ fn handle_tuple(pair: Pair<Rule>) -> Expr {
 }
 
 fn handle_fn_args(pair: Pair<Rule>) -> Vec<FnArg> {
-  let pair = pair.into_inner().next().unwrap();
-  let implicit = if let Rule::FnArgsImplicit = pair.as_rule() {
-    true
-  } else {
-    false
-  };
-
   let mut args = Vec::new();
   // Traverse the list of `FnArg`
   for pair in pair.into_inner() {
@@ -612,7 +603,7 @@ fn handle_fn_args(pair: Pair<Rule>) -> Vec<FnArg> {
         _ => unreachable!(),
       }
     }
-    args.push(FnArg::new(name, expr.unwrap(), implicit));
+    args.push(FnArg::new(name, expr.unwrap()));
   }
   return args;
 }
@@ -705,29 +696,16 @@ fn handle_constructor_pattern(pair: Pair<Rule>) -> Pat {
   let mut pairs = pair.into_inner();
   let qualified = handle_qualify_expr(pairs.next().unwrap());
 
-  let mut args = Vec::new();
-  for pair in pairs {
-    match pair.as_rule() {
-      Rule::ConstructorPatternArgsImplicit => {
-        for pair in pair.into_inner() {
-          args.push(handle_constructor_pattern_arg(pair, true));
-        }
-      }
-      Rule::ConstructorPatternArgsExplicit => {
-        for pair in pair.into_inner() {
-          args.push(handle_constructor_pattern_arg(pair, false));
-        }
-      }
-      _ => unreachable!(),
-    }
-  }
+  let args = pairs
+    .next()
+    .unwrap()
+    .into_inner()
+    .map(handle_constructor_pattern_arg)
+    .collect();
   return Pat::mk_constructor(qualified, args);
 }
 
-fn handle_constructor_pattern_arg(
-  pair: Pair<Rule>,
-  implicit: bool,
-) -> ConstructorPatArg {
+fn handle_constructor_pattern_arg(pair: Pair<Rule>) -> ConstructorPatArg {
   let mut name = None;
   let mut pat = None;
 
@@ -739,7 +717,7 @@ fn handle_constructor_pattern_arg(
     }
   }
 
-  return ConstructorPatArg::new(name, pat.unwrap(), implicit);
+  return ConstructorPatArg::new(name, pat.unwrap());
 }
 
 fn handle_tuple_pattern(pair: Pair<Rule>) -> Pat {
@@ -973,11 +951,8 @@ fn handle_constructors(pair: Pair<Rule>) -> TypeBody {
       let mut ret_ty = None;
       for pair in pairs {
         match pair.as_rule() {
-          Rule::FnTyParamsImplicit => {
-            params.append(&mut handle_fn_ty_params(pair, true));
-          }
-          Rule::FnTyParamsExplicit => {
-            params.append(&mut handle_fn_ty_params(pair, false));
+          Rule::FnTyParams => {
+            params = handle_fn_ty_params(pair);
           }
           Rule::AccessExpr => {
             ret_ty = Some(handle_access_expr(pair));

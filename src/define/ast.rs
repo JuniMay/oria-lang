@@ -83,16 +83,11 @@ pub enum RangeKind {
 pub struct FnArg {
   pub name: Option<String>,
   pub expr: Expr,
-  pub implicit: bool,
 }
 
 impl FnArg {
-  pub fn new(name: Option<String>, expr: Expr, implicit: bool) -> Self {
-    Self {
-      name,
-      expr,
-      implicit,
-    }
+  pub fn new(name: Option<String>, expr: Expr) -> Self {
+    Self { name, expr }
   }
 }
 
@@ -491,16 +486,11 @@ pub enum RangePatBound {
 pub struct ConstructorPatArg {
   pub name: Option<String>,
   pub pat: Pat,
-  pub implicit: bool,
 }
 
 impl ConstructorPatArg {
-  pub fn new(name: Option<String>, pat: Pat, implicit: bool) -> Self {
-    Self {
-      name,
-      pat,
-      implicit,
-    }
+  pub fn new(name: Option<String>, pat: Pat) -> Self {
+    Self { name, pat }
   }
 }
 
@@ -610,10 +600,7 @@ impl Pat {
     }
   }
 
-  pub fn mk_constructor(
-    qualified: Expr,
-    args: Vec<ConstructorPatArg>,
-  ) -> Self {
+  pub fn mk_constructor(qualified: Expr, args: Vec<ConstructorPatArg>) -> Self {
     Self {
       kind: PatKind::Constructor(Box::new(qualified), args),
       span: Span::default(),

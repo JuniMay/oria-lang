@@ -126,18 +126,18 @@ type UInt =  record {
 def builtin @llvm_ir(@str) : Unit
 def builtin @asm(@str) : Unit
 
-def builtin @typeof[T](x : T) => T
+def builtin @typeof(implicit T, x : T) => T
 
 def the(T : Type, x : T) : T => x
 
-def id[T : Type](x : T) : T => x
+def id(implicit T : Type, x : T) : T => x
 
 type Void
 
-type PhantomData[Type]
+type PhantomData(T : Type)
 
-type Equal[A : Type, B : Type](x : A, y : B) =
-  | Refl[A : Type, x : A] : Equal(x, x) 
+type Equal(implicit A : Type, implicit B : Type, x : A, y : B) =
+  | Refl(implicit A : Type, implicit x : A) : Equal(x, x) 
 
 # the(Equal(2, 3), Refl) shall fail to typecheck
 

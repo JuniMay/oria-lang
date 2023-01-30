@@ -41,7 +41,7 @@ Record = { "record" ~ "{" ~ (RecordField ~ ("," ~ RecordField)*)? ~ "}" }
 RecordField = { Ident ~ ":" ~ Expr }
 
 Constructors = { "|" ~ Constructor ~ ("|" ~ Constructor)* }
-Constructor = { Ident ~ FnTyParamsImplicit? ~ FnTyParamsExplicit? ~ (":" ~ AccessExpr)? }
+Constructor = { Ident ~ FnTyParams? ~ (":" ~ AccessExpr)? }
 
 Interface = { "interface" ~ "{" ~ Def* ~ "}" }
 
@@ -56,21 +56,15 @@ Expr = {  Return | Break | Continue | FnExpr | Assign | OpExpr }
 OpExpr = { PrefixOp* ~ AccessExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ AccessExpr ~ PostfixOp*)* }
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
-FnLhs = { FnParamsImplicit ~ FnParamsExplicit ~ (":" ~ OpExpr)? 
-        | FnParamsImplicit ~ (":" ~ OpExpr)? 
-        | FnParamsExplicit ~ (":" ~ OpExpr)? 
-        }
-FnParamsImplicit = { "[" ~ (FnParam ~ ("," ~ FnParam)*)? ~ "]" }
-FnParamsExplicit = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
-FnParam = { Ident ~ (":" ~ OpExpr)? }
+FnLhs = { FnParams ~ (":" ~ OpExpr)? }
+FnParams = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
+FnParam = { ParamSpec? ~ Ident ~ (":" ~ OpExpr)? }
 
-FnTy = { FnTyParamsImplicit ~ FnTyParamsExplicit ~ "->" ~ OpExpr 
-       | FnTyParamsImplicit ~ "->" ~ OpExpr 
-       | FnTyParamsExplicit ~ "->" ~ OpExpr 
-       }
-FnTyParamsImplicit = { "[" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ "]" }
-FnTyParamsExplicit = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
-FnTyParam = { (Ident ~ ":")? ~ OpExpr }
+FnTy = { FnTyParams ~ "->" ~ OpExpr }
+FnTyParams = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
+FnTyParam = { (ParamSpec? ~ Ident ~ ":")? ~ OpExpr }
+
+ParamSpec = { "implicit" }
 
 AccessExpr = { (PrimaryExpr ~ FnArgs* ~ ".")* ~ PrimaryExpr ~ FnArgs* }
 
@@ -88,9 +82,7 @@ PrimaryExpr = { Universe
 
 QualifyExpr = { (Ident ~ FnArgs* ~ "::")* ~ Ident }
 
-FnArgs = { FnArgsExplicit | FnArgsImplicit }
-FnArgsExplicit = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
-FnArgsImplicit = { "[" ~ (FnArg ~ ("," ~ FnArg)*)? ~ "]" }
+FnArgs = { "(" ~ (FnArg ~ ("," ~ FnArg)*)? ~ ")" }
 FnArg = { (Ident ~ "=")? ~ Expr }
 
 Tuple = { "(" ~ Expr ~ ("," ~ Expr)+ ~ ")" }
@@ -180,12 +172,8 @@ RangePatternFrom = { RangePatternBound ~ ".." }
 RangePatternTo = { ".." ~ RangePatternBound }
 RangePatternToInclusive = { "..=" ~ RangePatternBound }
 
-ConstructorPattern = { QualifyExpr ~ ConstructorPatternArgsExplicit
-                     | QualifyExpr ~ ConstructorPatternArgsImplicit 
-                     | QualifyExpr ~ ConstructorPatternArgsImplicit ~ ConstructorPatternArgsExplicit 
-                     }
-ConstructorPatternArgsImplicit = { "[" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ "]" }
-ConstructorPatternArgsExplicit = { "(" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ")" }
+ConstructorPattern = { QualifyExpr ~ ConstructorPatternArgs }
+ConstructorPatternArgs = { "(" ~ (ConstructorPatternArg ~ ("," ~ ConstructorPatternArg)*)? ~ ")" }
 ConstructorPatternArg = { (Ident ~ "=")? ~ Pattern }
 
 TuplePattern = { "(" ~ Pattern ~ ("," ~ Pattern)+ ~ ")" } 
