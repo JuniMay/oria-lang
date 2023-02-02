@@ -44,6 +44,10 @@ pub enum BinOp {
   Or,
   /// Path `===`
   Path,
+  /// Min of intervals
+  IntervalMin,
+  /// Max of intervals
+  IntervalMax,
 }
 
 /// Unary operators
@@ -61,6 +65,8 @@ pub enum UnaryOp {
   Ref,
   /// Dereference
   Deref,
+  /// Negation of intervals
+  IntervalNeg,
 }
 
 #[derive(Debug)]
@@ -262,8 +268,8 @@ pub enum ExprKind {
   IfLet(IfLet),
   /// Match
   Match(Box<Expr>, Vec<MatchArm>),
-  /// Record Initialization
-  Record(Box<Expr>, Vec<(String, Expr)>),
+  /// Struct Initialization
+  Struct(Box<Expr>, Vec<(String, Expr)>),
 }
 
 #[derive(Debug)]
@@ -453,9 +459,9 @@ impl Expr {
     }
   }
 
-  pub fn mk_record(qualified: Expr, fields: Vec<(String, Expr)>) -> Self {
+  pub fn mk_struct(qualified: Expr, fields: Vec<(String, Expr)>) -> Self {
     Self {
-      kind: ExprKind::Record(Box::new(qualified), fields),
+      kind: ExprKind::Struct(Box::new(qualified), fields),
       span: Span::default(),
     }
   }
@@ -471,7 +477,7 @@ pub enum IdentPatSpec {
 }
 
 #[derive(Debug)]
-pub enum RecordPatElem {
+pub enum StructPatElem {
   Field(String, Pat),
   Rest,
 }
@@ -514,7 +520,7 @@ pub enum PatKind {
   Wildcard,
   Rest,
   Ident(IdentPatSpec, String),
-  Record(Box<Expr>, Vec<RecordPatElem>),
+  Struct(Box<Expr>, Vec<StructPatElem>),
   Constructor(Box<Expr>, Vec<ConstructorPatArg>),
   Tuple(Vec<Pat>),
   Qualify(Box<Expr>),
@@ -561,9 +567,9 @@ impl Pat {
     }
   }
 
-  pub fn mk_record(qualified: Expr, elems: Vec<RecordPatElem>) -> Self {
+  pub fn mk_struct(qualified: Expr, elems: Vec<StructPatElem>) -> Self {
     Self {
-      kind: PatKind::Record(Box::new(qualified), elems),
+      kind: PatKind::Struct(Box::new(qualified), elems),
       span: Span::default(),
     }
   }
@@ -724,7 +730,7 @@ impl Module {
 
 #[derive(Debug)]
 pub enum TypeBody {
-  Record(Vec<(String, Expr)>),
+  Struct(Vec<(String, Expr)>),
   Interface(Vec<Item>),
   Expr(Expr),
   Constructors(Vec<(String, Option<Fn>)>),

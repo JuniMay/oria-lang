@@ -75,51 +75,51 @@ def builtin @div_f64(@f64, @f64) : @f64
 def builtin @div_isize(@isize, @isize) : (@isize, @isize)
 def builtin @div_usize(@usize, @usize) : (@usize, @usize)
 
-type Int8 =  record { 
+type Int8 = struct { 
   value : @i8
 }
 
-type Int16 =  record { 
+type Int16 = struct { 
   value : @i16
 }
 
-type Int32 =  record { 
+type Int32 = struct { 
   value : @i32
 }
 
-type Int64 =  record { 
+type Int64 = struct { 
   value : @i64
 }
 
-type UInt8 =  record { 
+type UInt8 = struct { 
   value : @u8
 }
 
-type UInt16 =  record { 
+type UInt16 = struct { 
   value : @u16
 }
 
-type UInt32 =  record { 
+type UInt32 = struct { 
   value : @u32
 }
 
-type UInt64 =  record { 
+type UInt64 = struct { 
   value : @u64
 }
 
-type Float32 =  record { 
+type Float32 = struct { 
   value : @f32
 }
 
-type Float64 =  record { 
+type Float64 = struct { 
   value : @f64
 }
 
-type Int =  record { 
+type Int = struct { 
   value : @isize 
 }
 
-type UInt =  record { 
+type UInt = struct { 
   value : @usize 
 }
 

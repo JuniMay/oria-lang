@@ -168,6 +168,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
   use pest::pratt_parser::PrattParser;
 
   let pratt = PrattParser::new()
+    .op(Op::infix(Rule::IntervalMin, Left) | Op::infix(Rule::IntervalMax, Left))
     .op(Op::infix(Rule::Range, Left) | Op::infix(Rule::RangeInclusive, Left))
     .op(Op::infix(Rule::LogicalOr, Left))
     .op(Op::infix(Rule::LogicalAnd, Left))
@@ -194,6 +195,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
         | Op::prefix(Rule::RangeToInclusive)
         | Op::prefix(Rule::Pos)
         | Op::prefix(Rule::Neg)
+        | Op::prefix(Rule::IntervalNeg)
         | Op::prefix(Rule::LogicalNot)
         | Op::prefix(Rule::BitwiseNot)
         | Op::prefix(Rule::Ref)
@@ -215,6 +217,7 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
       Rule::BitwiseNot => Expr::mk_unary(UnaryOp::BitNot, expr),
       Rule::Ref => Expr::mk_unary(UnaryOp::Ref, expr),
       Rule::Deref => Expr::mk_unary(UnaryOp::Deref, expr),
+      Rule::IntervalNeg => Expr::mk_unary(UnaryOp::IntervalNeg, expr),
       _ => unreachable!(),
     })
     .map_postfix(|expr, op| match op.as_rule() {
@@ -245,6 +248,8 @@ fn handle_op_expr(pair: Pair<Rule>) -> Expr {
       Rule::Shl => Expr::mk_binary(BinOp::Shl, lhs, rhs),
       Rule::Shr => Expr::mk_binary(BinOp::Shr, lhs, rhs),
       Rule::Path => Expr::mk_binary(BinOp::Path, lhs, rhs),
+      Rule::IntervalMin => Expr::mk_binary(BinOp::IntervalMin, lhs, rhs),
+      Rule::IntervalMax => Expr::mk_binary(BinOp::IntervalMax, lhs, rhs),
       _ => unreachable!(),
     });
 
@@ -392,12 +397,12 @@ fn handle_expr_with_block(pair: Pair<Rule>) -> Expr {
     Rule::IfLet => handle_if_let(pair),
     Rule::Match => handle_match(pair),
     Rule::Block => Expr::mk_block(handle_block(pair)),
-    Rule::RecordInit => handle_record_init(pair),
+    Rule::StructInit => handle_struct_init(pair),
     _ => unreachable!(),
   }
 }
 
-fn handle_record_init(pair: Pair<Rule>) -> Expr {
+fn handle_struct_init(pair: Pair<Rule>) -> Expr {
   let mut pairs = pair.into_inner();
   let qualified = handle_qualify_expr(pairs.next().unwrap());
   let fields = pairs
@@ -408,7 +413,7 @@ fn handle_record_init(pair: Pair<Rule>) -> Expr {
       return (name, expr);
     })
     .collect();
-  return Expr::mk_record(qualified, fields);
+  return Expr::mk_struct(qualified, fields);
 }
 
 fn handle_loop(pair: Pair<Rule>) -> Expr {
@@ -678,7 +683,7 @@ fn handle_pattern_without_range(pair: Pair<Rule>) -> Pat {
     Rule::IdentPattern => handle_ident_pattern(pair),
     Rule::WildcardPattern => Pat::mk_wildcard(),
     Rule::RestPattern => Pat::mk_rest(),
-    Rule::RecordPattern => handle_record_pattern(pair),
+    Rule::StructPattern => handle_struct_pattern(pair),
     Rule::TuplePattern => handle_tuple_pattern(pair),
     Rule::QualifyPattern => {
       Pat::mk_qualify(handle_qualify_expr(pair.into_inner().next().unwrap()))
@@ -724,7 +729,7 @@ fn handle_tuple_pattern(pair: Pair<Rule>) -> Pat {
   Pat::mk_tuple(pair.into_inner().map(handle_pattern).collect())
 }
 
-fn handle_record_pattern(pair: Pair<Rule>) -> Pat {
+fn handle_struct_pattern(pair: Pair<Rule>) -> Pat {
   let mut pairs = pair.into_inner();
   let mut elems = Vec::new();
 
@@ -732,18 +737,18 @@ fn handle_record_pattern(pair: Pair<Rule>) -> Pat {
   for pair in pairs {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-      Rule::RestPattern => elems.push(RecordPatElem::Rest),
-      Rule::RecordPatternField => {
+      Rule::RestPattern => elems.push(StructPatElem::Rest),
+      Rule::StructPatternField => {
         let mut pairs = pair.into_inner();
         let name = pairs.next().unwrap().as_str().to_string();
         let pat = handle_pattern(pairs.next().unwrap());
-        elems.push(RecordPatElem::Field(name, pat));
+        elems.push(StructPatElem::Field(name, pat));
       }
       _ => unreachable!(),
     }
   }
 
-  return Pat::mk_record(qualified, elems);
+  return Pat::mk_struct(qualified, elems);
 }
 
 fn handle_literal_pattern(pair: Pair<Rule>) -> Pat {
@@ -933,7 +938,7 @@ fn handle_type(pair: Pair<Rule>) -> Item {
 fn handle_type_body(pair: Pair<Rule>) -> TypeBody {
   let pair = pair.into_inner().next().unwrap();
   match pair.as_rule() {
-    Rule::Record => handle_record(pair),
+    Rule::Struct => handle_struct(pair),
     Rule::Expr => TypeBody::Expr(handle_expr(pair)),
     Rule::Interface => handle_interface(pair),
     Rule::Constructors => handle_constructors(pair),
@@ -973,7 +978,7 @@ fn handle_interface(pair: Pair<Rule>) -> TypeBody {
   return TypeBody::Interface(items);
 }
 
-fn handle_record(pair: Pair<Rule>) -> TypeBody {
+fn handle_struct(pair: Pair<Rule>) -> TypeBody {
   let pairs = pair.into_inner();
   let mut fields = Vec::new();
 
@@ -983,7 +988,7 @@ fn handle_record(pair: Pair<Rule>) -> TypeBody {
     let expr = handle_expr(pairs.next().unwrap());
     fields.push((name, expr));
   }
-  return TypeBody::Record(fields);
+  return TypeBody::Struct(fields);
 }
 
 fn hanlde_impl(pair: Pair<Rule>) -> Item {

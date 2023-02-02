@@ -1,0 +1,17 @@
+
+type Either(L : Type, R : Type) =
+  | Left(L) 
+  | Right(R)
+
+type Bool = 
+  | False
+  | True
+
+type So(b : Bool) = 
+  | Oh : So(True)
+
+def choose(b : Bool) : Either(So(b), So(!b)) 
+  => match b {
+    True => Either::Left(Oh),
+    False => Either::Right(Oh)
+  }

@@ -13,8 +13,8 @@ impl Nat {
   }
 
   def is_succ(self : Nat) : Bool => match self {
-    self()::Nat::Zero => return False,
-    self()::Nat::Succ(_) => return True
+    Nat::Zero => return False,
+    Nat::Succ(_) => return True
   }
 
   def add(self : Nat, other : Nat) : Nat => match self {
@@ -23,7 +23,7 @@ impl Nat {
   }
   
   # Just testing the parser
-  def test_record_parse(self : Nat) : Nat => {
+  def test_struct_parse(self : Nat) : Nat => {
     let x = Point { a: 1, b: 2, c: 3 }
     match Point { a : 1, b : 2, c : 3 } {
       Point { a:x, b:y, c: z } => 1

@@ -34,11 +34,11 @@ UseTreeSimple = { Ident ~ "::" ~ UseTree }
 Const = { "const" ~ Ident ~ ":" ~ AccessExpr ~ "=" ~ Expr }
 
 Type = { "type" ~ TypeSpec? ~ Ident ~ FnLhs? ~ ("=" ~ TypeBody)? }
-TypeBody = { Record | Interface | Expr | Constructors }
+TypeBody = { Struct | Interface | Expr | Constructors }
 TypeSpec = { "builtin" }
 
-Record = { "record" ~ "{" ~ (RecordField ~ ("," ~ RecordField)*)? ~ "}" }
-RecordField = { Ident ~ ":" ~ Expr }
+Struct = { "struct" ~ "{" ~ (StructField ~ ("," ~ StructField)*)? ~ "}" }
+StructField = { Ident ~ ":" ~ Expr }
 
 Constructors = { "|" ~ Constructor ~ ("|" ~ Constructor)* }
 Constructor = { Ident ~ FnTyParams? ~ (":" ~ AccessExpr)? }
@@ -57,11 +57,11 @@ OpExpr = { PrefixOp* ~ AccessExpr ~ PostfixOp* ~ (InfixOp ~ PrefixOp* ~ AccessEx
 
 FnExpr = { FnLhs ~ "=>" ~ Expr }
 FnLhs = { FnParams ~ (":" ~ OpExpr)? }
-FnParams = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ")" }
+FnParams = { "(" ~ (FnParam ~ ("," ~ FnParam)*)? ~ ","? ~ ")" }
 FnParam = { ParamSpec? ~ Ident ~ (":" ~ OpExpr)? }
 
 FnTy = { FnTyParams ~ "->" ~ OpExpr }
-FnTyParams = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ")" }
+FnTyParams = { "(" ~ (FnTyParam ~ ("," ~ FnTyParam)*)? ~ ","? ~ ")" }
 FnTyParam = { (ParamSpec? ~ Ident ~ ":")? ~ OpExpr }
 
 ParamSpec = { "implicit" }
@@ -94,11 +94,11 @@ ExprWithBlock = { Loop
                 | IfLet
                 | Match
                 | Block
-                | RecordInit
+                | StructInit
                 }
 
-RecordInit = { QualifyExpr ~ "{" ~ (RecordInitField ~ ("," ~ RecordInitField)*)? ~ "}" }
-RecordInitField = { Ident ~ ":" ~ Expr }
+StructInit = { QualifyExpr ~ "{" ~ (StructInitField ~ ("," ~ StructInitField)*)? ~ ","? ~ "}" }
+StructInitField = { Ident ~ ":" ~ Expr }
 
 Assign = { OpExpr ~ "=" ~ Expr }
 
@@ -124,7 +124,7 @@ Stmt = { Let | Item | Expr }
 
 Let = { "let" ~ PatternWithoutRange ~ (":" ~ AccessExpr)? ~ ("=" ~ Expr)? }
 
-Match = { "match" ~ Expr ~ "{" ~ MatchArm ~ ("," ~ MatchArm)* ~ "}" }
+Match = { "match" ~ Expr ~ "{" ~ MatchArm ~ ("," ~ MatchArm)* ~ ","? ~ "}" }
 MatchArm = { Pattern ~ "=>" ~ Expr }
 
 Pattern = { "|"? ~ PrimaryPattern ~ ("|" ~ PrimaryPattern)* }
@@ -134,7 +134,7 @@ PrimaryPattern = { RangePattern | PatternWithoutRange }
 PatternWithoutRange = { WildcardPattern
                       | RestPattern
                       | LiteralPattern
-                      | RecordPattern 
+                      | StructPattern 
                       | ConstructorPattern
                       | QualifyPattern
                       | IdentPattern
@@ -155,9 +155,9 @@ WildcardPattern = { "_" }
 
 RestPattern = { ".." }
 
-RecordPattern = { QualifyExpr ~ "{" ~ (RecordPatternElem ~ ("," ~ RecordPatternElem)*)? ~ "}" }
-RecordPatternElem = { RecordPatternField | RestPattern }
-RecordPatternField = { Ident ~ ":" ~ Pattern }
+StructPattern = { QualifyExpr ~ "{" ~ (StructPatternElem ~ ("," ~ StructPatternElem)*)? ~ ","? ~ "}" }
+StructPatternElem = { StructPatternField | RestPattern }
+StructPatternField = { Ident ~ ":" ~ Pattern }
 
 RangePattern = { RangePatternInclusive 
                | RangePatternExclusive 
@@ -261,10 +261,15 @@ LogicalNot = { "!" }
 BitwiseNot = { "~" }
 
 Path = { "===" }
+IntervalMin = { "/\\" }
+IntervalMax = { "\\/" }
+IntervalNeg = { "~~" }
 
 InfixOp = _{ Add 
            | Sub 
            | Mul 
+           | IntervalMin
+           | IntervalMax
            | Div 
            | Rem 
            | Shl
@@ -290,6 +295,7 @@ PrefixOp = _{ Pos
             | Ref 
             | Deref 
             | LogicalNot 
+            | IntervalNeg
             | BitwiseNot 
             | RangeTo
             | RangeToInclusive

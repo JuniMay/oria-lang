@@ -1,0 +1,59 @@
+# This is just a sketch module.
+
+module basic {
+  def identity(
+    implicit A : Type,
+    a : A,
+  ) : a === a 
+    => (i) => a
+
+  def congurence(
+    implicit A : Type,
+    implicit B : Type,
+    f : (A) -> B,
+    implicit a : A,
+    implicit b : A,
+    p : a === b,
+  ) : f(a) === f(b) 
+    => (i) => f(p(i))
+
+  def congurence_curry(implicit A : Type)
+    => (implicit B : Type)
+    => (f : (A) -> B)
+    => (implicit a : A)
+    => (implicit b : A)
+    => (p : a === b) : f(a) === f(b)
+    => (i) => f(p(i))
+
+  def sym(
+    implicit A : Type,
+    implicit a : A,
+    implicit b : A,
+    p : a === b,
+  ) : b === a 
+    => (i) => p(~~i)
+
+  def sym_curry(implicit A : Type) 
+    => (implicit a : A) 
+    => (implicit b : A) 
+    => (p : a === b) 
+    => (i) => p(~~i)
+
+  def min_interval(lhs : Interval, rhs : Interval) => lhs /\ rhs
+
+  def max_interval(lhs : Interval, rhs : Interval) => lhs \/ rhs 
+
+  def neg_interval(i : Interval) => ~~i
+
+  def refl_ex(implicit A : Type)
+    => (a : A) : a === a 
+    => (i) => a
+
+  def refl_ex_fn(implicit A : Type)
+    => (a : A) : (Interval) -> A
+    => (i) => a
+
+  def refl_refl_ex(implicit A : Type)
+    => (a : A) : refl_ex(a) === refl_ex(a)
+    => (i : Interval, j : Interval) => a
+}
