@@ -859,6 +859,7 @@ fn handle_item(pair: Pair<Rule>) -> Item {
     Rule::Type => handle_type(pair),
     Rule::Impl => hanlde_impl(pair),
     Rule::Module => handle_module(pair),
+    Rule::Interface => handle_interface(pair),
     _ => unreachable!(),
   };
   item.set_span(span);
@@ -940,7 +941,6 @@ fn handle_type_body(pair: Pair<Rule>) -> TypeBody {
   match pair.as_rule() {
     Rule::Struct => handle_struct(pair),
     Rule::Expr => TypeBody::Expr(handle_expr(pair)),
-    Rule::Interface => handle_interface(pair),
     Rule::Constructors => handle_constructors(pair),
     _ => unreachable!(),
   }
@@ -972,10 +972,22 @@ fn handle_constructors(pair: Pair<Rule>) -> TypeBody {
   return TypeBody::Constructors(constructors);
 }
 
-fn handle_interface(pair: Pair<Rule>) -> TypeBody {
+fn handle_interface(pair: Pair<Rule>) -> Item {
   let pairs = pair.into_inner();
-  let items = pairs.map(handle_def).collect();
-  return TypeBody::Interface(items);
+  let mut name = String::new();
+  let mut params = None;
+  let mut body = Vec::new();
+
+  for pair in pairs {
+    match pair.as_rule() {
+      Rule::Ident => name = pair.as_str().to_string(),
+      Rule::FnParams => params = Some(handle_fn_params(pair)),
+      Rule::Def => body.push(handle_def(pair)),
+      _ => unreachable!(),
+    }
+  }
+
+  return Item::mk_interface(Interface::new(name, params, body));
 }
 
 fn handle_struct(pair: Pair<Rule>) -> TypeBody {

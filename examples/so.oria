@@ -1,11 +1,7 @@
 
-type Either(L : Type, R : Type) =
-  | Left(L) 
-  | Right(R)
+type Either(L : Type, R : Type) = Left(L) | Right(R)
 
-type Bool = 
-  | False
-  | True
+type Bool = False | True
 
 type So(b : Bool) = 
   | Oh : So(True)

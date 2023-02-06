@@ -1,10 +1,11 @@
-type Bool = 
-  | False
-  | True
+type Bool = False
+          | True
+type Nat = Zero | Succ(Nat)
 
-type Nat =
-  | Zero
-  | Succ(Nat)
+type Singleton = 
+  | Cons
+
+type Alias = Singleton
 
 impl Nat {
   def is_zero(self : Nat) : Bool => match self {

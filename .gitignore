@@ -1,4 +1,5 @@
 /target
 /.idea
 /build
+/test
 Cargo.lock

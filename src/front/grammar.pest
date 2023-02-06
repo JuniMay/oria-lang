@@ -12,6 +12,7 @@ Item = { Use
        | Type
        | Impl
        | Module
+       | Interface
        }
 
 Ident = { IdentNormal | IdentBuiltin | IdentUnderscore }
@@ -33,17 +34,19 @@ UseTreeSimple = { Ident ~ "::" ~ UseTree }
 
 Const = { "const" ~ Ident ~ ":" ~ AccessExpr ~ "=" ~ Expr }
 
+Interface = { "interface" ~ Ident ~ FnParams? ~ "{" ~ Def* ~ "}" }
+
 Type = { "type" ~ TypeSpec? ~ Ident ~ FnLhs? ~ ("=" ~ TypeBody)? }
-TypeBody = { Struct | Interface | Expr | Constructors }
+TypeBody = { Struct | Constructors | Expr }
 TypeSpec = { "builtin" }
 
 Struct = { "struct" ~ "{" ~ (StructField ~ ("," ~ StructField)*)? ~ "}" }
 StructField = { Ident ~ ":" ~ Expr }
 
-Constructors = { "|" ~ Constructor ~ ("|" ~ Constructor)* }
+Constructors = { "|"? ~ Constructor ~ ("|" ~ Constructor)+
+               | "|" ~ Constructor}
 Constructor = { Ident ~ FnTyParams? ~ (":" ~ AccessExpr)? }
 
-Interface = { "interface" ~ "{" ~ Def* ~ "}" }
 
 Impl = { "impl" ~ QualifyExpr ~ "{" ~ Def* ~ "}" }
 

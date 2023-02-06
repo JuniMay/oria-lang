@@ -731,7 +731,6 @@ impl Module {
 #[derive(Debug)]
 pub enum TypeBody {
   Struct(Vec<(String, Expr)>),
-  Interface(Vec<Item>),
   Expr(Expr),
   Constructors(Vec<(String, Option<Fn>)>),
 }
@@ -761,6 +760,23 @@ impl Type {
 }
 
 #[derive(Debug)]
+pub struct Interface {
+  pub name: String,
+  pub params: Option<Vec<FnParam>>,
+  pub body: Vec<Item>,
+}
+
+impl Interface {
+  pub fn new(
+    name: String,
+    params: Option<Vec<FnParam>>,
+    body: Vec<Item>,
+  ) -> Self {
+    Self { name, params, body }
+  }
+}
+
+#[derive(Debug)]
 pub enum ItemKind {
   Use(UseTree),
   Import(String),
@@ -769,6 +785,7 @@ pub enum ItemKind {
   Type(Type),
   Impl(Expr, Vec<Item>),
   Module(Module),
+  Interface(Interface),
 }
 
 #[derive(Debug)]
@@ -827,6 +844,13 @@ impl Item {
   pub fn mk_type(ty: Type) -> Self {
     Self {
       kind: ItemKind::Type(ty),
+      span: Span::default(),
+    }
+  }
+
+  pub fn mk_interface(interface: Interface) -> Self {
+    Self {
+      kind: ItemKind::Interface(interface),
       span: Span::default(),
     }
   }
