@@ -134,24 +134,6 @@ impl Value {
     Value::new(ValueKind::FnTy(params, ret), Some(Value::mk_type(0)))
   }
 
-  pub(self) fn mk_block(block: Block) -> Ptr<Value> {
-    Value::new(ValueKind::Block(block), None)
-  }
-
-  pub(self) fn mk_fn(
-    name: String,
-    params: Vec<FnParam>,
-    ty: Ptr<Value>,
-    body: Option<Block>,
-    symbol_table: Ptr<SymbolTable>,
-    namespaces: Namespaces,
-  ) -> Ptr<Value> {
-    Value::new(
-      ValueKind::Fn(Fn::new(name, params, ty, body, symbol_table, namespaces)),
-      None,
-    )
-  }
-
   pub(self) fn mk_var(mir_codegen_ctx: &mut MirCodegenContext) -> Ptr<Value> {
     Value::new(ValueKind::Var(mir_codegen_ctx.value_var_cnt.next()), None)
   }

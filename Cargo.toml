@@ -12,8 +12,9 @@ name = "oriac"
 path = "src/bin/main.rs"
 
 [dependencies]
-pest = { version = "2.5.2", features = ["pretty-print"]}
-pest_derive = { version = "2.5.2"}
+pest = { version = "2.5.4", features = ["pretty-print"]}
+pest_derive = { version = "2.5.4"}
 clap = "4.0.29"
 textwrap = "0.16.0"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0"] }
+ansi_term = "0.12.1"

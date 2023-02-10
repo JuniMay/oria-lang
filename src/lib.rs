@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub mod backend;
 pub mod define;
+pub mod diagnostic;
 pub mod front;
 
 pub type Ptr<T> = Rc<RefCell<T>>;

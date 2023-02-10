@@ -1,3 +1,5 @@
+//! Abstract syntax tree (AST) definitions.
+
 use super::{Radix, Span};
 use pest;
 
@@ -279,8 +281,8 @@ pub struct Expr {
 }
 
 impl Expr {
-  pub fn set_span(&mut self, span: pest::Span) {
-    self.span = Span::from_pest(span);
+  pub fn set_span(&mut self, line_col: (usize, usize), span: pest::Span) {
+    self.span = Span::from_pest(line_col, span);
   }
 
   pub fn mk_range(
@@ -535,8 +537,8 @@ pub struct Pat {
 }
 
 impl Pat {
-  pub fn set_span(&mut self, span: pest::Span) {
-    self.span = Span::from_pest(span);
+  pub fn set_span(&mut self, line_col: (usize, usize), span: pest::Span) {
+    self.span = Span::from_pest(line_col, span);
   }
 
   pub fn mk_lit(lit: Lit) -> Self {
@@ -641,8 +643,8 @@ pub struct Stmt {
 }
 
 impl Stmt {
-  pub fn set_span(&mut self, span: pest::Span) {
-    self.span = Span::from_pest(span);
+  pub fn set_span(&mut self, line_col: (usize, usize), span: pest::Span) {
+    self.span = Span::from_pest(line_col, span);
   }
 
   pub fn mk_let(decl: Let) -> Self {
@@ -795,8 +797,8 @@ pub struct Item {
 }
 
 impl Item {
-  pub fn set_span(&mut self, span: pest::Span) {
-    self.span = Span::from_pest(span);
+  pub fn set_span(&mut self, line_col: (usize, usize), span: pest::Span) {
+    self.span = Span::from_pest(line_col, span);
   }
 
   pub fn mk_def(def: Def) -> Self {
@@ -863,10 +865,14 @@ pub struct CompUnit {
 }
 
 impl CompUnit {
-  pub fn new(items: Vec<Item>, span: pest::Span) -> Self {
+  pub fn new(
+    items: Vec<Item>,
+    line_col: (usize, usize),
+    span: pest::Span,
+  ) -> Self {
     Self {
       items,
-      span: Span::from_pest(span),
+      span: Span::from_pest(line_col, span),
     }
   }
 }

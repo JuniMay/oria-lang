@@ -3,6 +3,7 @@ use inkwell::context::Context as LlvmContext;
 use inkwell::targets::TargetTriple as LlvmTargetTriple;
 use oria::backend::LlvmIrCodegenContext;
 use oria::define::mir::codegen::MirCodegenContext;
+use oria::diagnostic::Diagnostics;
 use oria::front::parser::handle_compunit;
 use std::fs::File;
 use std::io::prelude::*;
@@ -67,7 +68,10 @@ fn main() -> std::io::Result<()> {
 
   source_file.read_to_string(&mut source)?;
 
-  let parse_result = handle_compunit(&source);
+  let mut diagnostics = Diagnostics::new(source.clone());
+
+  let parse_result = handle_compunit(&source, &mut diagnostics);
+
   let ast_compunit = match parse_result {
     Ok(compunit) => compunit,
     Err(e) => {
@@ -121,6 +125,8 @@ fn main() -> std::io::Result<()> {
       unimplemented!()
     }
   }
+
+  println!("{}", diagnostics);
 
   Ok(())
 }

@@ -1,0 +1,19 @@
+
+type builtin @i8
+type builtin @i16
+type builtin @i32
+type builtin @i64
+type builtin @isize
+
+type builtin @u8
+type builtin @u16
+type builtin @u32
+type builtin @u64
+type builtin @usize
+
+type builtin @ptr
+
+# testing warning messages
+type Warning____Type
+type __Underscore
+

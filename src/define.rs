@@ -11,18 +11,28 @@ pub enum Radix {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Span {
+  pub lineno: usize,
   pub start: usize,
-  pub end: usize,
+  pub length: usize,
 }
 
 impl Span {
   pub fn default() -> Self {
-    Self { start: 0, end: 0 }
-  }
-  pub fn from_pest(pest_span: pest::Span) -> Self {
     Self {
-      start: pest_span.start(),
-      end: pest_span.end(),
+      lineno: 0,
+      start: 0,
+      length: 0,
+    }
+  }
+
+  pub fn from_pest(line_col: (usize, usize), pest_span: pest::Span) -> Self {
+    let lineno = line_col.0;
+    let start = line_col.1;
+    let length = pest_span.end() - pest_span.start();
+    Self {
+      lineno,
+      start,
+      length,
     }
   }
 }
