@@ -154,7 +154,7 @@ pub enum SymbolKind {
   /// Variable with specification and the type.
   ///
   /// The variable can be declared through `let`.
-  /// The symbol can be used in when type-checking the assign statement.
+  /// The symbol can be used when type-checking the assign statement.
   Var(VarSpec, Option<Ptr<Value>>),
   /// Constant with the value.
   Const(Ptr<Value>),
