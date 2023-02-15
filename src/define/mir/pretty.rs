@@ -4,6 +4,17 @@ use super::*;
 use std::fmt;
 use textwrap::indent;
 
+impl fmt::Display for VarSpec {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      VarSpec::Mutable => write!(f, "mut")?,
+      VarSpec::Comptime => write!(f, "comptime")?,
+      _ => write!(f, "")?,
+    }
+    Ok(())
+  }
+}
+
 impl fmt::Display for Module {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "# {}\n", self.mangle())?;
@@ -31,6 +42,10 @@ impl fmt::Display for Symbol {
         write!(f, "{} /* temporary */", value.borrow())?;
       }
       SymbolKind::Module(module) => write!(f, "{}", module.borrow())?,
+      SymbolKind::Var(spec, ty) => {
+        write!(f, "{}", self.name)?;
+        write!(f, " /* {} {} */", spec, ty.as_ref().borrow())?;
+      }
       _ => unimplemented!(),
     }
     Ok(())
@@ -149,9 +164,26 @@ impl fmt::Display for Stmt {
           write!(f, " else {}", else_block.as_ref().unwrap())?;
         }
       }
-      StmtKind::Loop(block) => {
-        write!(f, "loop {}", block.borrow())?;
-      } // _ => unimplemented!(),
+      StmtKind::Switch(cond, default_label, cases) => {
+        write!(f, "switch {} {{\n", cond.borrow())?;
+        for (i, (value, label)) in cases.iter().enumerate() {
+          if i > 0 {
+            write!(f, "\n")?;
+          }
+          write!(f, "  {} => {}", value.borrow(), label)?;
+        }
+        write!(f, " default => '{}", default_label)?;
+        write!(f, "\n}}")?;
+      }
+      StmtKind::Let(symbol) => {
+        write!(f, "let ")?;
+        if let SymbolKind::Var(ref spec, ref ty) = symbol.borrow().kind {
+          write!(f, "{} {} : {}", spec, symbol.borrow().name, ty.borrow())?;
+        }
+      }
+      StmtKind::Assign(lhs, rhs) => {
+        write!(f, "{} = {}", lhs.borrow(), rhs.borrow())?;
+      }
     }
     Ok(())
   }

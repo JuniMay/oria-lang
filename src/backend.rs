@@ -180,13 +180,7 @@ impl<'ctx> LlvmIrCodegenContext<'ctx> {
         MirStmtKind::Return(value) => {
           if let Some(symbol) = value {
             let mir_value = match &symbol.borrow().kind {
-              MirSymbolKind::Var(_spec, maybe_mir_value) => {
-                if let Some(mir_value) = maybe_mir_value {
-                  mir_value.clone()
-                } else {
-                  return Err("Uninitialized variable".to_string());
-                }
-              }
+              MirSymbolKind::Var(_spec, mir_value) => mir_value.clone(),
 
               MirSymbolKind::Temporary(mir_value) => mir_value.clone(),
               _ => unimplemented!(),

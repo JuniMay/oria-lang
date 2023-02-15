@@ -159,7 +159,7 @@ pub enum SymbolKind {
   ///
   /// The variable can be declared through `let`.
   /// The symbol can be used when type-checking the assign statement.
-  Var(VarSpec, Option<Ptr<Value>>),
+  Var(VarSpec, Ptr<Value>),
   /// Constant with the value.
   Const(Ptr<Value>),
   /// Definition of a function.
@@ -252,6 +252,19 @@ impl SymbolTable {
     return None;
   }
 
+  pub fn register_var(
+    &mut self,
+    name: String,
+    spec: VarSpec,
+    ty: Ptr<Value>,
+  ) -> Ptr<Symbol> {
+    let symbol = Symbol::new(name, SymbolKind::Var(spec, ty));
+    self
+      .table
+      .insert(symbol.borrow().name.clone(), symbol.clone());
+    return symbol;
+  }
+
   /// Register a temporary symbol with the value.
   ///
   /// The name of the temporary symbol will be derived from `mir_codegen_ctx`.
@@ -306,6 +319,8 @@ impl SymbolTable {
 /// Statement kinds.
 #[derive(Debug, Clone, Trace, Finalize)]
 pub enum StmtKind {
+  /// Declaration of variable.
+  Let(Ptr<Symbol>),
   /// Return
   Return(Option<Ptr<Symbol>>),
   /// Break
@@ -316,8 +331,16 @@ pub enum StmtKind {
   Block(Ptr<Block>),
   /// If
   If(Ptr<Symbol>, Block, Option<Block>),
-  /// Loop
-  Loop(Ptr<Block>),
+  /// Switch
+  ///
+  /// The first symbol is the value to be switched on.
+  /// The second string is the label of the default case.
+  /// The vector contains the value and the label of each case.
+  ///
+  /// This can be used in compiling `match`
+  Switch(Ptr<Symbol>, String, Vec<(Ptr<Value>, String)>),
+  /// Assign
+  Assign(Ptr<Symbol>, Ptr<Symbol>),
 }
 
 /// A statement.
@@ -332,6 +355,14 @@ pub struct Stmt {
 impl Stmt {
   pub fn new(kind: StmtKind, span: Span) -> Ptr<Stmt> {
     ptr(Stmt { kind, span })
+  }
+
+  pub fn mk_assign(lhs: Ptr<Symbol>, rhs: Ptr<Symbol>) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Assign(lhs, rhs), Span::default())
+  }
+
+  pub fn mk_let(symbol: Ptr<Symbol>) -> Ptr<Stmt> {
+    Stmt::new(StmtKind::Let(symbol), Span::default())
   }
 
   /// Make a return statement with optional return symbol.

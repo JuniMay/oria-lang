@@ -163,13 +163,7 @@ impl TypeCheck for Symbol {
     mir_codegen_ctx: &mut MirCodegenContext,
   ) -> Ptr<Value> {
     match &mut self.kind {
-      SymbolKind::Var(_spec, maybe_mir_value) => {
-        if let Some(ref mut mir_value) = maybe_mir_value {
-          return mir_value.clone();
-        } else {
-          panic!("Variable {} has no type", self.name);
-        }
-      }
+      SymbolKind::Var(_spec, mir_value) => return mir_value.clone(),
       SymbolKind::Temporary(mir_value) => {
         return mir_value
           .borrow_mut()

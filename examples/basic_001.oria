@@ -1,5 +1,7 @@
 
 def control() => {
+  let mut a = 1
+  let b = 2
   {
     if 1 {
       return 1

@@ -1,3 +1,5 @@
+use crate::define::ast::IdentPatSpec;
+
 use super::*;
 
 /// Global context.
@@ -49,7 +51,7 @@ impl MirCodegenContext {
 
   /// Fetch a lambda function name.
   /// This will increase the counter of lambda functions.
-  pub(super) fn fetach_lambda_fn_name(&mut self) -> String {
+  pub(super) fn fetch_lambda_fn_name(&mut self) -> String {
     let name = format!("__LAMBDA_{}", self.lambda_fn_cnt.next());
     return name;
   }
@@ -210,6 +212,51 @@ impl MirCodegenContext {
             _ => unimplemented!(),
           }
         }
+        AstStmtKind::Let(ast_let) => {
+          match &ast_let.pat.kind {
+            ast::PatKind::Ident(spec, name) => {
+              let mir_var_spec = match spec {
+                IdentPatSpec::Mut => VarSpec::Mutable,
+                IdentPatSpec::Comptime => VarSpec::Comptime,
+                IdentPatSpec::None => VarSpec::None,
+                _ => {
+                  // TODO: Diagnostics.
+                  todo!()
+                }
+              };
+              let mir_ty = if let Some(ast_ty) = &ast_let.ty {
+                self.from_ast_expr(symbol_table.clone(), ast_ty)
+              } else {
+                Value::mk_var(self)
+              };
+
+              let symbol = symbol_table.borrow_mut().register_var(
+                name.clone(),
+                mir_var_spec,
+                mir_ty,
+              );
+
+              let stmt = Stmt::mk_let(symbol.clone());
+              block.push(stmt);
+
+              if ast_let.init.is_some() {
+                let rhs_value = self.from_ast_expr(
+                  symbol_table.clone(),
+                  &ast_let.init.as_ref().unwrap(),
+                );
+                let rhs = symbol_table
+                  .borrow_mut()
+                  .register_temporary(rhs_value, self);
+                let stmt = Stmt::mk_assign(symbol, rhs);
+                block.push(stmt);
+              }
+            }
+            _ => {
+              // TODO: Diagnostics.
+              todo!()
+            }
+          }
+        }
         _ => unimplemented!(),
       }
     }
@@ -266,7 +313,7 @@ impl MirCodegenContext {
         let mir_func_name = match &ast_func.name {
           Some(name) => name.clone(),
           // The anonymous function shall not occur in the `def` item.
-          None => self.fetach_lambda_fn_name(),
+          None => self.fetch_lambda_fn_name(),
         };
         let mir_func_symbol_table =
           SymbolTable::new(Some(symbol_table.clone()));
