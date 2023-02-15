@@ -1,7 +1,9 @@
+use gc::{Finalize, Trace};
+
 pub mod ast;
 pub mod mir;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Trace, Finalize)]
 pub enum Radix {
   Bin,
   Oct,
@@ -9,7 +11,7 @@ pub enum Radix {
   Hex,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Trace, Finalize)]
 pub struct Span {
   pub lineno: usize,
   pub start: usize,

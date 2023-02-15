@@ -74,6 +74,7 @@ impl fmt::Display for FnParam {
 impl fmt::Display for Value {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match &self.kind {
+      ValueKind::Undefined => write!(f, "undefined")?,
       ValueKind::Unit => write!(f, "Unit")?,
       ValueKind::Type(level) => write!(f, "Type{}", level)?,
       ValueKind::Lit(radix, text) => {

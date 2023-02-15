@@ -3,6 +3,8 @@ pub mod codegen;
 pub mod mangling;
 pub mod pretty;
 
+use gc::{Finalize, Trace};
+
 use self::check::TypeCheck;
 use self::codegen::MirCodegenContext;
 use super::{ast, Radix, Span};
@@ -13,7 +15,7 @@ pub type Level = u64;
 pub type Label = String;
 pub type Namespaces = Vec<String>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct FnParam {
   pub name: Option<String>,
   pub ty: Ptr<Value>,
@@ -27,7 +29,7 @@ impl FnParam {
 }
 
 /// A function.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Fn {
   /// Function name.
   pub name: String,
@@ -66,8 +68,10 @@ impl Fn {
 }
 
 /// Value kinds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub enum ValueKind {
+  /// Undefined value
+  Undefined,
   /// Unit type.
   Unit,
   /// Type
@@ -88,7 +92,7 @@ pub enum ValueKind {
 }
 
 /// A value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Value {
   /// The kind of the value.
   pub kind: ValueKind,
@@ -139,7 +143,7 @@ impl Value {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub enum VarSpec {
   Mutable,
   Comptime,
@@ -147,7 +151,7 @@ pub enum VarSpec {
 }
 
 /// Symbol kinds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub enum SymbolKind {
   /// Function parameter with the type.
   Param(Ptr<Value>),
@@ -169,7 +173,7 @@ pub enum SymbolKind {
 }
 
 /// A symbol.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Symbol {
   /// The name of the symbol.
   ///
@@ -202,7 +206,7 @@ impl Symbol {
 }
 
 /// A symbol table.
-#[derive(Clone)]
+#[derive(Clone, Trace, Finalize)]
 pub struct SymbolTable {
   /// The symbol table.
   ///
@@ -300,7 +304,7 @@ impl SymbolTable {
 }
 
 /// Statement kinds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub enum StmtKind {
   /// Return
   Return(Option<Ptr<Symbol>>),
@@ -317,7 +321,7 @@ pub enum StmtKind {
 }
 
 /// A statement.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Stmt {
   /// The kind of the statement.
   pub kind: StmtKind,
@@ -360,7 +364,7 @@ impl Stmt {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Block {
   pub label: Label,
   pub stmts: Vec<Ptr<Stmt>>,
@@ -381,7 +385,7 @@ impl Block {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Trace, Finalize)]
 pub struct Module {
   pub name: String,
   pub symbol_table: Ptr<SymbolTable>,

@@ -1,14 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
+use gc::{Gc, GcCell, Trace};
 
 pub mod backend;
 pub mod define;
 pub mod diagnostic;
 pub mod front;
 
-pub type Ptr<T> = Rc<RefCell<T>>;
+pub type Ptr<T> = Gc<GcCell<T>>;
 
-pub fn ptr<T>(v: T) -> Ptr<T> {
-  Rc::new(RefCell::new(v))
+pub fn ptr<T>(v: T) -> Ptr<T>
+where
+  T: Trace,
+{
+  Gc::new(GcCell::new(v))
 }
 
 #[derive(Debug, Clone)]
